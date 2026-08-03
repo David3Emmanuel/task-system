@@ -1,0 +1,16 @@
+{
+  "name": "@task-system/cli",
+  "version": "0.1.0",
+  "description": "tsk: command-line tooling for the Task-System markdown format (AI-friendly).",
+  "type": "module",
+  "bin": {
+    "tsk": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@task-system/core": "*"
+  }
+}
