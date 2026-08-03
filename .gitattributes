@@ -1,0 +1,5 @@
+# The Task-System format is defined with LF line endings. Keep them LF everywhere
+# so canonical output is byte-identical across platforms.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
