@@ -33,8 +33,15 @@ describe('regions', () => {
 
 describe('fields', () => {
   test('parses emoji fields', () => {
-    const t = root(parse('- [ ] Ship it 🛫 2026-08-01 📅 2026-08-10 ✅ 2026-08-09 ➕ 2026-07-30\n'));
-    expect(t.dates).toEqual({ start: '2026-08-01', due: '2026-08-10', done: '2026-08-09', created: '2026-07-30' });
+    const t = root(
+      parse('- [ ] Ship it 🛫 2026-08-01 📅 2026-08-10 ✅ 2026-08-09 ➕ 2026-07-30\n'),
+    );
+    expect(t.dates).toEqual({
+      start: '2026-08-01',
+      due: '2026-08-10',
+      done: '2026-08-09',
+      created: '2026-07-30',
+    });
     expect(t.text).toBe('Ship it');
   });
 
@@ -72,7 +79,9 @@ describe('props', () => {
 
 describe('nesting and comments', () => {
   test('nests children by indentation', () => {
-    const doc = parse('- [ ] Parent\n  - [ ] Child 1\n  - [ ] Child 2\n    - [ ] Grandchild\n- [ ] Sibling\n');
+    const doc = parse(
+      '- [ ] Parent\n  - [ ] Child 1\n  - [ ] Child 2\n    - [ ] Grandchild\n- [ ] Sibling\n',
+    );
     const parent = root(doc);
     expect(parent.children.length).toBe(2);
     expect(parent.children[0]!.text).toBe('Child 1');
