@@ -22,8 +22,5 @@
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
-  },
-  "dependencies": {
-    "cli": "link:../../AppData/Local/pnpm/global/5/node_modules/@task-system/cli"
   }
 }
