@@ -108,6 +108,7 @@ tsk <command> [file] [options]
   rm <file> (--line N|--id X|--match T) [--recursive] [--json]
   event add <file> "<text>" --due DATE [--json]
   event rm <file> (--line N|--id X|--match T) [--json]
+  serve <file> [--port N]              serve the web app backed by <file> (Ctrl+C to stop)
 ```
 
 Quick tour:
@@ -147,10 +148,26 @@ Details:
 
 `@task-system/web` is a two-pane React demo: edit the Markdown on the right and
 the task list updates live; click the list on the left and it writes back to the
-Markdown. It persists to `localStorage`.
+Markdown. As a plain demo it persists to `localStorage`.
+
+To run it **linked to a real file** (not localStorage), use `tsk serve`:
 
 ```bash
-npm run dev          # start the Vite dev server (http://localhost:5173)
+npm run build                        # build the web app (required first)
+tsk serve tasks.md                   # serves the UI backed by tasks.md
+tsk serve tasks.md --port 8080       # or a custom port (default 4173)
+```
+
+It creates the file with an empty document if it doesn't exist, then serves the
+app at `http://127.0.0.1:4173`. Every change saves back to the file (atomically,
+debounced). If the file is edited elsewhere (e.g. in Obsidian) while the app is
+open, the app detects the conflict and reloads rather than overwriting your
+external edit.
+
+For the dev server with hot reload (demo/localStorage only):
+
+```bash
+npm run dev          # http://localhost:5173
 ```
 
 ---

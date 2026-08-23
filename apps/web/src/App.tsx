@@ -20,6 +20,7 @@ import { TaskList, type TaskCallbacks } from './TaskList';
 import { Toolbar } from './Toolbar';
 import { StatusBar } from './StatusBar';
 import { TitleInput } from './TitleInput';
+import { useDocument } from './useFileDoc';
 
 const STORAGE_KEY = 'task-system:doc';
 
@@ -52,22 +53,25 @@ function loadInitial(): string {
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function App() {
-  // The raw markdown is the single source of truth. The parsed document is
-  // derived from it; every UI edit produces a new document and commits it back
-  // as text. Editing the textarea re-parses into the list, and vice versa.
-  const [text, setText] = useState<string>(loadInitial);
+  // The raw markdown is the single source of truth. In "file" mode (served by
+  // `tsk serve <file>`) it's read/written to a real file via the /doc endpoint;
+  // in "demo" mode it's an in-memory sample + localStorage. Either way, every
+  // UI edit produces a new document and commits it back as text.
+  const { text, mode, notice, fileName, updateText } = useDocument(loadInitial());
   const doc = useMemo(() => parse(text), [text]);
   const issues = useMemo(() => validate(doc), [doc]);
 
+  // Persist to localStorage only in demo mode.
   useEffect(() => {
+    if (mode !== 'demo') return;
     try {
       localStorage.setItem(STORAGE_KEY, text);
     } catch {
       /* ignore */
     }
-  }, [text]);
+  }, [text, mode]);
 
-  const commit = useCallback((next: TaskDocument) => setText(format(next)), []);
+  const commit = useCallback((next: TaskDocument) => updateText(format(next)), [updateText]);
 
   const run = useCallback(
     (fn: (d: TaskDocument) => TaskDocument) => {
@@ -104,16 +108,36 @@ export function App() {
     },
   };
 
+  if (mode === 'loading') {
+    return <div className="app loading">Connecting…</div>;
+  }
+
   return (
     <div className="app">
+      {notice && <div className="notice">{notice}</div>}
+
       <header className="topbar">
         <span className="brand">Task‑System</span>
-        <TitleInput value={doc.title ?? ''} onCommit={(t) => commit({ ...doc, title: t || null })} />
+        {fileName && (
+          <span className="file-badge" title="Saving to this file">
+            📄 {fileName}
+          </span>
+        )}
+        <TitleInput
+          value={doc.title ?? ''}
+          onCommit={(t) => commit({ ...doc, title: t || null })}
+        />
         <span className="spacer" />
-        <button onClick={() => window.confirm('Replace with the sample document?') && setText(SAMPLE)}>
+        <button
+          onClick={() =>
+            window.confirm('Replace the document with the sample?') && updateText(SAMPLE)
+          }
+        >
           Sample
         </button>
-        <button onClick={() => window.confirm('Start from an empty document?') && setText(format(emptyDocument()))}>
+        <button
+          onClick={() => window.confirm('Start from an empty document?') && commit(emptyDocument())}
+        >
           Clear
         </button>
       </header>
@@ -132,7 +156,7 @@ export function App() {
         </section>
         <section className="pane">
           <h2>Markdown</h2>
-          <Editor text={text} onChange={setText} />
+          <Editor text={text} onChange={updateText} />
         </section>
       </main>
     </div>

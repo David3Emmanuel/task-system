@@ -30,7 +30,13 @@ export function TaskList({ timeline, archive, callbacks }: Props) {
           <h3 className="archive-title">Archive</h3>
           <ul className="roots">
             {archive.map((n, i) => (
-              <NodeView key={keyFor(n, i)} node={n} depth={0} region="archive" callbacks={callbacks} />
+              <NodeView
+                key={keyFor(n, i)}
+                node={n}
+                depth={0}
+                region="archive"
+                callbacks={callbacks}
+              />
             ))}
           </ul>
         </>
@@ -68,7 +74,13 @@ function NodeView({
       {node.children.length > 0 && (
         <ul>
           {node.children.map((c, i) => (
-            <NodeView key={keyFor(c, i)} node={c} depth={depth + 1} region={region} callbacks={callbacks} />
+            <NodeView
+              key={keyFor(c, i)}
+              node={c}
+              depth={depth + 1}
+              region={region}
+              callbacks={callbacks}
+            />
           ))}
         </ul>
       )}

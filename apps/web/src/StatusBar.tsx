@@ -10,7 +10,8 @@ export function StatusBar({ issues }: { issues: Issue[] }) {
   return (
     <div className={`status ${cls}`}>
       <span className="status-line">
-        <span className="dot" /> {plural(errs, 'error')} · {plural(warns, 'warning')} · {plural(infos, 'info')}
+        <span className="dot" /> {plural(errs, 'error')} · {plural(warns, 'warning')} ·{' '}
+        {plural(infos, 'info')}
       </span>
       {issues.length > 0 && (
         <ul className="issue-list">

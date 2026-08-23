@@ -56,6 +56,7 @@ Commands:
   rm <file> (--line N|--id X|--match T) [--recursive] [--json]
   event add <file> "<text>" --due DATE [--json]
   event rm <file> (--line N|--id X|--match T) [--json]
+  serve <file> [--port N]              serve the web app backed by <file> (Ctrl+C to stop)
 
 Dates are ISO YYYY-MM-DD. Locators: --line is 1-based as shown by \`list\`.`;
 

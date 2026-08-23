@@ -47,11 +47,19 @@ export function Toolbar({
         />
         <label>
           Start
-          <input type="date" value={task.start} onChange={(e) => setTask((t) => ({ ...t, start: e.target.value }))} />
+          <input
+            type="date"
+            value={task.start}
+            onChange={(e) => setTask((t) => ({ ...t, start: e.target.value }))}
+          />
         </label>
         <label>
           Due
-          <input type="date" value={task.due} onChange={(e) => setTask((t) => ({ ...t, due: e.target.value }))} />
+          <input
+            type="date"
+            value={task.due}
+            onChange={(e) => setTask((t) => ({ ...t, due: e.target.value }))}
+          />
         </label>
         <button type="submit">Add</button>
       </form>
@@ -65,7 +73,11 @@ export function Toolbar({
         />
         <label>
           Due
-          <input type="date" value={ev.due} onChange={(e) => setEv((x) => ({ ...x, due: e.target.value }))} />
+          <input
+            type="date"
+            value={ev.due}
+            onChange={(e) => setEv((x) => ({ ...x, due: e.target.value }))}
+          />
         </label>
         <button type="submit">Add</button>
       </form>

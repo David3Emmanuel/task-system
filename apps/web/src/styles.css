@@ -1,5 +1,9 @@
 :root {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   color-scheme: light dark;
   --bg: #f7f7f8;
   --panel: #ffffff;
@@ -301,7 +305,7 @@ textarea:focus {
   font-size: 12px;
   color: var(--muted);
 }
-.edit-fields input[type="date"] {
+.edit-fields input[type='date'] {
   padding: 2px 6px;
 }
 .row.edit .row-actions {
@@ -347,4 +351,38 @@ textarea:focus {
     border-left: none;
     border-top: 1px solid var(--border);
   }
+}
+
+/* File-backed mode (tsk serve) */
+.app.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--muted);
+}
+.file-badge {
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  color: var(--muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.notice {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
