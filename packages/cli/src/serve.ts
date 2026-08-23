@@ -18,9 +18,10 @@
  */
 
 import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
-import { basename, extname, resolve, sep } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { basename, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readText, writeTextAtomic } from './io.js';
 
@@ -156,4 +157,56 @@ export function startServe(opts: ServeOptions): Promise<StartedServer> {
 /** Resolve the built web app directory relative to this package's location. */
 export function resolveWebRoot(): string {
   return fileURLToPath(new URL('../../../apps/web/dist', import.meta.url));
+}
+
+/** The repo root, derived from `<root>/apps/web/dist`. */
+function repoRootOf(webRoot: string): string {
+  return resolve(webRoot, '..', '..', '..');
+}
+
+function newestMtime(dir: string): number {
+  let max = 0;
+  for (const entry of readdirSync(dir)) {
+    const p = join(dir, entry);
+    const st = statSync(p);
+    max = Math.max(max, st.isDirectory() ? newestMtime(p) : st.mtimeMs);
+  }
+  return max;
+}
+
+/**
+ * Whether the web app needs rebuilding: no index.html, or any source file is
+ * newer than the current build output.
+ */
+export function needsRebuild(webRoot: string): boolean {
+  if (!existsSync(join(webRoot, 'index.html'))) return true;
+  const src = join(repoRootOf(webRoot), 'apps', 'web', 'src');
+  if (!existsSync(src)) return true;
+  return newestMtime(src) > newestMtime(webRoot);
+}
+
+/**
+ * Build the web app if it is missing or stale. Prints progress so the caller
+ * knows the server is building rather than hung. Throws if the build fails.
+ */
+export async function ensureWebBuilt(webRoot: string): Promise<void> {
+  if (!needsRebuild(webRoot)) return;
+  const root = repoRootOf(webRoot);
+  console.log('Building the web app (first run or source changed)…');
+  await new Promise<void>((resolvePromise, reject) => {
+    // shell:true resolves npm/npm.cmd on Windows. The command string is fixed
+    // and fully controlled, so there is no injection concern.
+    const child = spawn('npm run build', { cwd: root, stdio: 'inherit', shell: true });
+    child.on('error', (err) => reject(new Error(`could not run build: ${err.message}`)));
+    child.on('close', (code) => {
+      if (code === 0) resolvePromise();
+      else
+        reject(
+          new Error(
+            `web app build failed (exit ${code ?? 'signal'}). Check node_modules are installed.`,
+          ),
+        );
+    });
+  });
+  console.log('Web app built.');
 }

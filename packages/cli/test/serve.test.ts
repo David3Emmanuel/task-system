@@ -1,8 +1,8 @@
 import { expect, test, describe, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startServe, createServeHandler, type StartedServer } from '../src/serve.js';
+import { startServe, createServeHandler, needsRebuild, type StartedServer } from '../src/serve.js';
 
 const running: StartedServer[] = [];
 
@@ -127,5 +127,40 @@ describe('tsk serve static assets', () => {
     });
     // It must not serve the file outside webRoot (a 200 with secret content).
     expect(status).not.toBe(200);
+  });
+});
+
+describe('needsRebuild', () => {
+  test('is true when there is no index.html', () => {
+    const root = mkdtempSync(join(tmpdir(), 'tsk-serve-'));
+    const webRoot = join(root, 'apps', 'web', 'dist');
+    expect(needsRebuild(webRoot)).toBe(true);
+  });
+
+  test('is false when the build is newer than the source', () => {
+    const root = mkdtempSync(join(tmpdir(), 'tsk-serve-'));
+    const webRoot = join(root, 'apps', 'web', 'dist');
+    const src = join(root, 'apps', 'web', 'src');
+    mkdirSync(webRoot, { recursive: true });
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(webRoot, 'index.html'), '<html></html>');
+    writeFileSync(join(src, 'App.tsx'), 'export const App = () => null;');
+    // Force the source to be older than the build.
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(join(src, 'App.tsx'), old, old);
+    expect(needsRebuild(webRoot)).toBe(false);
+  });
+
+  test('is true when the source is newer than the build', () => {
+    const root = mkdtempSync(join(tmpdir(), 'tsk-serve-'));
+    const webRoot = join(root, 'apps', 'web', 'dist');
+    const src = join(root, 'apps', 'web', 'src');
+    mkdirSync(webRoot, { recursive: true });
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(webRoot, 'index.html'), '<html></html>');
+    writeFileSync(join(src, 'App.tsx'), 'export const App = () => null;');
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(join(webRoot, 'index.html'), old, old);
+    expect(needsRebuild(webRoot)).toBe(true);
   });
 });

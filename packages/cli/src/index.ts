@@ -6,13 +6,13 @@
  * `tsk serve <file>` is handled here (not in the one-shot dispatcher) because
  * it starts a long-running HTTP server instead of returning a CommandResult.
  */
-import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { format, emptyDocument } from '@task-system/core';
 import { fileExists, readText, writeTextAtomic } from './io.js';
 import { run } from './run.js';
 import { parseArgs, optString } from './args.js';
-import { startServe, resolveWebRoot } from './serve.js';
+import { startServe, resolveWebRoot, ensureWebBuilt } from './serve.js';
 
 const SERVE_USAGE = `tsk serve <file> [--port N]
   Serve the Task-System web app backed by <file>.
@@ -41,14 +41,17 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     const webRoot = resolveWebRoot();
-    if (!existsSync(webRoot)) {
-      process.stderr.write(
-        `serve: web app not built at ${webRoot}.\nRun \`npm run build\` first, then \`tsk serve <file>\`.\n`,
-      );
+    try {
+      await ensureWebBuilt(webRoot);
+    } catch (err) {
+      process.stderr.write(`serve: ${(err as Error).message}\n`);
       process.exit(2);
     }
     const abs = resolve(file);
     if (!existsSync(abs)) {
+      // Ensure the parent directory exists so the atomic write can create its
+      // temp file (a path like ./sub/tasks.md where ./sub is missing).
+      mkdirSync(dirname(abs), { recursive: true });
       writeTextAtomic(abs, format(emptyDocument()));
       console.log(`Created empty document: ${abs}`);
     }
