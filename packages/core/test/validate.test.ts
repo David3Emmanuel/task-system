@@ -77,13 +77,21 @@ describe('task field constraints', () => {
 });
 
 describe('section bounds', () => {
-  test('STRADDLES_EVENT: a task spans past the next event', () => {
+  test('STRADDLES_EVENT: a task spanning past the next event is a warning, not an error', () => {
     const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Straddler 🛫 2026-08-05 📅 2026-08-15'].join(
       '\n',
     );
     const issues = validate(parse(src));
     expect(codes(issues)).toContain('STRADDLES_EVENT');
-    expect(bySeverity(issues, 'error').some((i) => i.code === 'STRADDLES_EVENT')).toBe(true);
+    expect(bySeverity(issues, 'error').some((i) => i.code === 'STRADDLES_EVENT')).toBe(false);
+    expect(bySeverity(issues, 'warning').some((i) => i.code === 'STRADDLES_EVENT')).toBe(true);
+  });
+
+  test('a straddling task no longer blocks validation', () => {
+    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Straddler 🛫 2026-08-05 📅 2026-08-15'].join(
+      '\n',
+    );
+    expect(hasBlockingErrors(validate(parse(src)))).toBe(false);
   });
 
   test('a task whose span ends exactly at the next event does not straddle', () => {

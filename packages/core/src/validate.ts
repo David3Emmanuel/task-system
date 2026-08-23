@@ -127,7 +127,7 @@ export function validate(doc: TaskDocument): Issue[] {
         if (b.upper && finish && finish > b.upper) {
           issues.push({
             code: 'STRADDLES_EVENT',
-            severity: 'error',
+            severity: 'warning',
             message: `Task "${task.text}" ends ${finish}, past the next event ${b.upper}; it straddles an event.`,
             line: task.sourceLine,
           });

@@ -202,7 +202,7 @@ can be restored to the same spot.
 | `EVENT_NO_DATE` | error | Event has no `📅` date. |
 | `EVENT_NOT_INCREASING` | error | Event dates do not strictly increase in file order. |
 | `START_AFTER_DUE` | error | `start` is later than `due`. |
-| `STRADDLES_EVENT` | error | A task’s span (`endDate`) extends past the next event. |
+| `STRADDLES_EVENT` | warning | A task’s span (`endDate`) extends past the next event. |
 | `UNSUPPORTED_LINE` | warning | An unrecognized line was preserved verbatim. |
 | `ARCHIVE_NO_DONE` | warning | An archived root has no `✅` date. |
 | `DONE_NO_DATE` | info | A checked task has no `✅` date. |
