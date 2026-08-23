@@ -5,3 +5,7 @@ dist/
 coverage/
 *.log
 .DS_Store
+
+# Personal pnpm usage (repo is npm-standard); keep pnpm artifacts local.
+pnpm-lock.yaml
+pnpm-workspace.yaml
