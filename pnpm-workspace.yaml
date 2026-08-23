@@ -1,0 +1,2 @@
+overrides:
+  cli: link:../../AppData/Local/pnpm/global/5/node_modules/@task-system/cli
