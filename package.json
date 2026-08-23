@@ -18,6 +18,7 @@
     "dev": "npm run --workspace @task-system/web dev"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
