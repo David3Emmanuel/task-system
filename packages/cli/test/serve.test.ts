@@ -1,8 +1,21 @@
 import { expect, test, describe, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  utimesSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startServe, createServeHandler, needsRebuild, type StartedServer } from '../src/serve.js';
+import {
+  startServe,
+  createServeHandler,
+  needsRebuild,
+  prepareServeFile,
+  type StartedServer,
+} from '../src/serve.js';
 
 const running: StartedServer[] = [];
 
@@ -162,5 +175,42 @@ describe('needsRebuild', () => {
     const old = new Date(Date.now() - 60_000);
     utimesSync(join(webRoot, 'index.html'), old, old);
     expect(needsRebuild(webRoot)).toBe(true);
+  });
+});
+
+describe('prepareServeFile', () => {
+  const tmp = () => mkdtempSync(join(tmpdir(), 'tsk-prep-'));
+
+  test('creates a missing file with an empty document', () => {
+    const dir = tmp();
+    const file = join(dir, 'sub', 'tasks.md'); // parent dir does not exist
+    expect(prepareServeFile(file, false)).toBe('created');
+    expect(existsSync(file)).toBe(true);
+    expect(readFileSync(file, 'utf8')).toBe('');
+  });
+
+  test('leaves an existing file unchanged without --format', () => {
+    const dir = tmp();
+    const file = join(dir, 'tasks.md');
+    writeFileSync(file, '- [ ] B 📅 2026-08-20\n- [ ] A 📅 2026-08-10\n');
+    expect(prepareServeFile(file, false)).toBe('unchanged');
+    expect(readFileSync(file, 'utf8')).toBe('- [ ] B 📅 2026-08-20\n- [ ] A 📅 2026-08-10\n');
+  });
+
+  test('formats (sorts) a non-canonical file when --format is set', () => {
+    const dir = tmp();
+    const file = join(dir, 'tasks.md');
+    writeFileSync(file, '- [ ] B 📅 2026-08-20\n- [ ] A 📅 2026-08-10\n');
+    expect(prepareServeFile(file, true)).toBe('formatted');
+    // Canonical order sorts A (earlier due) before B.
+    const out = readFileSync(file, 'utf8');
+    expect(out.indexOf('A')).toBeLessThan(out.indexOf('B'));
+  });
+
+  test('reports unchanged when the file is already canonical', () => {
+    const dir = tmp();
+    const file = join(dir, 'tasks.md');
+    writeFileSync(file, '- [ ] A 📅 2026-08-10\n- [ ] B 📅 2026-08-20\n');
+    expect(prepareServeFile(file, true)).toBe('unchanged');
   });
 });

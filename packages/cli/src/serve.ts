@@ -20,9 +20,10 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, extname, join, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { format, emptyDocument, parse } from '@task-system/core';
 import { readText, writeTextAtomic } from './io.js';
 
 export interface ServeOptions {
@@ -162,6 +163,27 @@ export function resolveWebRoot(): string {
 /** The repo root, derived from `<root>/apps/web/dist`. */
 function repoRootOf(webRoot: string): string {
   return resolve(webRoot, '..', '..', '..');
+}
+
+export type ServePrepResult = 'created' | 'formatted' | 'unchanged';
+
+/**
+ * Prepare the served file: create it (with an empty document) if missing, and
+ * optionally canonicalize it (sort into sections) before the app loads. Returns
+ * what happened so the caller can tell the user. Uses atomic writes.
+ */
+export function prepareServeFile(filePath: string, formatFile: boolean): ServePrepResult {
+  if (!existsSync(filePath)) {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeTextAtomic(filePath, format(emptyDocument()));
+    return 'created';
+  }
+  if (!formatFile) return 'unchanged';
+  const before = readText(filePath);
+  const canonical = format(parse(before));
+  if (canonical === before) return 'unchanged';
+  writeTextAtomic(filePath, canonical);
+  return 'formatted';
 }
 
 function newestMtime(dir: string): number {

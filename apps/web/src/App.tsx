@@ -128,6 +128,9 @@ export function App() {
           onCommit={(t) => commit({ ...doc, title: t || null })}
         />
         <span className="spacer" />
+        <button onClick={() => commit(doc)} title="Reformat the document to canonical order">
+          Format
+        </button>
         <button
           onClick={() =>
             window.confirm('Replace the document with the sample?') && updateText(SAMPLE)

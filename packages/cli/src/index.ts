@@ -6,17 +6,17 @@
  * `tsk serve <file>` is handled here (not in the one-shot dispatcher) because
  * it starts a long-running HTTP server instead of returning a CommandResult.
  */
-import { existsSync, mkdirSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { format, emptyDocument } from '@task-system/core';
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileExists, readText, writeTextAtomic } from './io.js';
 import { run } from './run.js';
-import { parseArgs, optString } from './args.js';
-import { startServe, resolveWebRoot, ensureWebBuilt } from './serve.js';
+import { parseArgs, optString, optFlag } from './args.js';
+import { startServe, resolveWebRoot, ensureWebBuilt, prepareServeFile } from './serve.js';
 
-const SERVE_USAGE = `tsk serve <file> [--port N]
+const SERVE_USAGE = `tsk serve <file> [--port N] [--format]
   Serve the Task-System web app backed by <file>.
   Creates an empty document if <file> does not exist.
+  --format  canonicalize <file> (sort into sections) before serving.
   Default port: 4173. Binds to 127.0.0.1 only.`;
 
 async function main(): Promise<void> {
@@ -31,6 +31,7 @@ async function main(): Promise<void> {
     }
     const parsed = parseArgs(argv.slice(2));
     const portRaw = optString(parsed, 'port');
+    const formatFlag = optFlag(parsed, 'format');
     const port = portRaw !== undefined ? Number(portRaw) : 4173;
     if (!Number.isInteger(port) || port < 0 || port > 65535) {
       process.stderr.write(`serve: invalid port: ${portRaw}\n`);
@@ -48,13 +49,10 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     const abs = resolve(file);
-    if (!existsSync(abs)) {
-      // Ensure the parent directory exists so the atomic write can create its
-      // temp file (a path like ./sub/tasks.md where ./sub is missing).
-      mkdirSync(dirname(abs), { recursive: true });
-      writeTextAtomic(abs, format(emptyDocument()));
-      console.log(`Created empty document: ${abs}`);
-    }
+    const prep = prepareServeFile(abs, formatFlag);
+    if (prep === 'created') console.log(`Created empty document: ${abs}`);
+    else if (prep === 'formatted') console.log(`Formatted ${abs} to canonical order.`);
+    else if (formatFlag) console.log(`${abs} is already canonical.`);
     try {
       const started = await startServe({ filePath: abs, webRoot, port });
       console.log(`Task-System running at ${started.url}`);

@@ -153,16 +153,22 @@ Markdown. As a plain demo it persists to `localStorage`.
 To run it **linked to a real file** (not localStorage), use `tsk serve`:
 
 ```bash
-npm run build                        # build the web app (required first)
+npm run build                        # build the web app (auto-builds if needed)
 tsk serve tasks.md                   # serves the UI backed by tasks.md
 tsk serve tasks.md --port 8080       # or a custom port (default 4173)
+tsk serve tasks.md --format          # sort the file into sections before serving
 ```
 
-It creates the file with an empty document if it doesn't exist, then serves the
-app at `http://127.0.0.1:4173`. Every change saves back to the file (atomically,
+It creates the file with an empty document if it doesn't exist (auto-building
+the web app first if it's missing/stale), then serves the app at
+`http://127.0.0.1:4173`. Every change saves back to the file (atomically,
 debounced). If the file is edited elsewhere (e.g. in Obsidian) while the app is
 open, the app detects the conflict and reloads rather than overwriting your
 external edit.
+
+The UI shows the file as authored (two-way sync). Use the **Format** button in
+the top bar, or `tsk serve --format`, to canonicalize (sort into sections) on
+demand.
 
 For the dev server with hot reload (demo/localStorage only):
 
