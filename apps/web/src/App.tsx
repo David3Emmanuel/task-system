@@ -107,6 +107,9 @@ export function App() {
     onEdit(node, fields) {
       run((d) => set(d, locatorFor(node), fields));
     },
+    onAddChild(node, text) {
+      run((d) => add(d, { text, parent: locatorFor(node) }));
+    },
   };
 
   if (mode === 'loading') {

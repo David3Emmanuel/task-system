@@ -314,6 +314,22 @@ textarea:focus {
   font-style: italic;
 }
 
+/* Inline add-subtask form */
+.add-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 2px 2px 2px 4px;
+}
+.child-indent {
+  color: var(--muted);
+  font-size: 13px;
+}
+.add-child .edit-text {
+  flex: 1;
+}
+
 /* Inline edit form */
 .row.edit {
   flex-direction: column;

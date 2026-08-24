@@ -8,6 +8,7 @@ export interface TaskCallbacks {
     node: TaskNode,
     fields: { text?: string; start?: string | null; due?: string | null },
   ) => void;
+  onAddChild: (node: TaskNode, text: string) => void;
 }
 
 interface Props {
@@ -98,6 +99,8 @@ function TaskRow({
   callbacks: TaskCallbacks;
 }) {
   const [editing, setEditing] = useState(false);
+  const [addingChild, setAddingChild] = useState(false);
+  const [childText, setChildText] = useState('');
   const [draft, setDraft] = useState({
     text: node.text,
     start: node.dates.start ?? '',
@@ -161,6 +164,16 @@ function TaskRow({
     );
   }
 
+  const canHaveChildren = region === 'timeline' && !node.isEvent && !node.checked;
+
+  const commitChild = () => {
+    const text = childText.trim();
+    if (!text) return;
+    callbacks.onAddChild(node, text);
+    setChildText('');
+    setAddingChild(false);
+  };
+
   return (
     <div className={`row ${node.isEvent ? 'event' : ''} ${done ? 'done' : ''}`}>
       <input
@@ -178,6 +191,18 @@ function TaskRow({
       {node.props.id && <span className="id">{node.props.id}</span>}
       <span className="spacer" />
       <div className="row-actions">
+        {canHaveChildren && (
+          <button
+            className="ghost"
+            title="Add subtask"
+            onClick={() => {
+              setChildText('');
+              setAddingChild(true);
+            }}
+          >
+            +
+          </button>
+        )}
         <button
           className="ghost"
           title="Edit"
@@ -192,6 +217,29 @@ function TaskRow({
           ✕
         </button>
       </div>
+      {addingChild && (
+        <div className="add-child">
+          <span className="child-indent">↳</span>
+          <input
+            className="edit-text"
+            value={childText}
+            autoFocus
+            placeholder="Subtask…"
+            onChange={(e) => setChildText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitChild();
+              }
+              if (e.key === 'Escape') setAddingChild(false);
+            }}
+          />
+          <button onClick={commitChild}>Add</button>
+          <button className="ghost" onClick={() => setAddingChild(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
