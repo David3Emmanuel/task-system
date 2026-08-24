@@ -32,7 +32,10 @@ can all read and write the same source of truth without fighting over it.
   milestones, and an archive, with four date fields (`🛫` start, `📅` due,
   `✅` done, `➕` created).
 - **Exact archive round-trip** — `complete` / `unarchive` are inverse
-  operations that restore a task to its original parent and section.
+  operations that restore a task to its original parent and section. `format`
+  auto-archives any completed task still in the timeline (with reversible
+  bookkeeping), so a checked task you never explicitly archived lands in the
+  Archive canonically.
 - **Two surfaces** — a `tsk` CLI and a React SPA that both talk to the same
   core library.
 

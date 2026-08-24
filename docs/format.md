@@ -153,8 +153,21 @@ through formatting untouched. This guarantees round-tripping hand-edited files.
 - **Idempotent**: `format(format(x)) === format(x)`.
 - **Confluent**: the canonical form depends only on content, not on the input
   ordering of siblings or sections (a total-order tiebreak makes the sort unique).
-- **Id-stable**: `[id::]`, `[parent::]`, `[section::]` are never created or removed.
-- **No wall-clock**: output is a pure function of the AST.
+- **No wall-clock**: output is a pure function of the AST; a `✅ done` date is
+  never invented.
+- **Prop-stable**: the formatter never invents or strips `[id::]`, `[parent::]`,
+  `[section::]` — *except* when it canonicalizes a completed task into the
+  archive (below), where it adds the minimal reversible bookkeeping that
+  `complete` uses. Otherwise props are untouched.
+
+### Auto-archiving
+
+A completed task (`[x]` with a `✅` date) that was never explicitly archived is
+moved into the archive by `format` (this is the canonical state). It uses the
+same `[id::]` / `[parent::]` / `[section::]` bookkeeping as `complete`, so
+`unarchive` still restores it to its original parent/section. A checked task's
+subtree travels with it, and events are never auto-archived. `format` never
+adds a `✅` date, so a checked task without one is archived as-is.
 
 A serialized line uses this order:
 

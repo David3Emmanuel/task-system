@@ -9,10 +9,11 @@ import {
   unarchive,
   addEvent,
   removeEvent,
+  archiveInTimeline,
   OpError,
   seededRng,
 } from '../src/index.js';
-import type { TaskDocument } from '../src/index.js';
+import type { TaskDocument, TaskNode } from '../src/index.js';
 
 const rt = (doc: TaskDocument) => format(parse(format(doc)));
 const rng = () => seededRng(42);
@@ -166,5 +167,80 @@ describe('events', () => {
   test('removeEvent refuses a non-event', () => {
     const doc = parse('- [ ] A\n');
     expect(() => removeEvent(doc, { match: 'A' })).toThrow(OpError);
+  });
+});
+
+describe('archiveInTimeline (format auto-archive)', () => {
+  test('moves a checked top-level task to the archive', () => {
+    const doc = parse('- [x] Done 📅 2026-08-01 ✅ 2026-08-01\n- [ ] Open\n');
+    const out = archiveInTimeline(doc);
+    expect(out.timeline.some((n) => n.kind === 'task' && n.text === 'Done')).toBe(false);
+    expect(out.archive?.[0]?.text).toBe('Done');
+  });
+
+  test('does not invent a done date when the checked task has none', () => {
+    const doc = parse('- [x] Done, no date\n- [ ] Open\n');
+    const out = archiveInTimeline(doc);
+    expect(out.archive?.[0]?.dates.done).toBeUndefined();
+  });
+
+  test('records [parent::] for a nested checked task (parent keeps an id)', () => {
+    const doc = parse('- [ ] Parent\n  - [ ] Child\n  - [x] DoneChild ✅ 2026-08-01\n');
+    const out = archiveInTimeline(doc);
+    const parent = out.timeline[0] as TaskNode;
+    expect(parent.props.id).toBeTruthy();
+    expect(out.archive?.[0]?.props.parent).toBe(parent.props.id);
+  });
+
+  test('records [section::] for an undated root', () => {
+    const doc = parse('- [ ] 🏁 M 📅 2026-08-10\n- [x] Chore\n');
+    const out = archiveInTimeline(doc);
+    expect(out.archive?.[0]?.props.section).toBe('2026-08-10');
+  });
+
+  test('whole subtree travels with a checked parent', () => {
+    const doc = parse('- [x] Parent ✅ 2026-08-01\n  - [ ] Child\n');
+    const out = archiveInTimeline(doc);
+    expect(out.timeline.length).toBe(0);
+    expect(out.archive?.[0]?.children[0]?.text).toBe('Child');
+  });
+
+  test('events are never auto-archived', () => {
+    const doc = parse('- [x] 🏁 Bad event 📅 2026-08-10\n- [ ] A\n');
+    const out = archiveInTimeline(doc);
+    expect(out.timeline.some((n) => n.kind === 'task' && n.isEvent && n.text === 'Bad event')).toBe(
+      true,
+    );
+    expect(out.archive ?? []).toHaveLength(0);
+  });
+});
+
+describe('format auto-archives completed tasks', () => {
+  test('a checked task moves to the archive on format', () => {
+    const out = format(parse('- [x] Done ✅ 2026-08-01\n- [ ] Open 📅 2026-08-10\n'));
+    expect(out).toContain('## Archive');
+    expect(out).toContain('- [x] Done ✅ 2026-08-01');
+    const timeline = out.slice(0, out.indexOf('## Archive'));
+    expect(timeline).toContain('Open');
+  });
+
+  test('auto-archive is idempotent', () => {
+    const once = format(parse('- [x] Done ✅ 2026-08-01\n- [ ] Open\n'));
+    const twice = format(parse(once));
+    expect(twice).toBe(once);
+  });
+
+  test('unarchive restores an auto-archived nested task under its parent', () => {
+    const src = '- [ ] Parent\n  - [x] Child ✅ 2026-08-01\n';
+    const archived = archiveInTimeline(parse(src));
+    const back = unarchive(archived, { match: 'Child' });
+    // Child is re-opened and re-nested under Parent; Parent keeps its id (ids
+    // are stable and never stripped by the formatter).
+    const parent = back.timeline[0] as TaskNode;
+    expect(parent.props.id).toBeTruthy();
+    expect(parent.children[0]?.text).toBe('Child');
+    expect(parent.children[0]?.checked).toBe(false);
+    expect(parent.children[0]?.props.parent).toBeUndefined();
+    expect(back.archive ?? []).toHaveLength(0);
   });
 });

@@ -369,6 +369,92 @@ function reinsertUndated(
 /* events                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Move every completed (checked) task still in the timeline to the archive.
+ *
+ * This is what `format` runs first so a checked task that was never explicitly
+ * archived is canonicalized into the archive. It uses the same reversible
+ * bookkeeping as `complete` (`[parent::]` for a nested task whose parent stays
+ * in the timeline, `[section::]` for an undated root) so `unarchive` still
+ * restores it, and it never invents a `✅ done` date (no wall-clock).
+ *
+ * A checked task's whole subtree travels with it (nested tasks are not split).
+ * Events are never auto-archived.
+ */
+export function archiveInTimeline(doc: TaskDocument): TaskDocument {
+  const next = cloneDoc(doc);
+  if (next.timeline.length === 0) return next;
+
+  // Collect checked, non-event tasks before mutating. We do not recurse into a
+  // checked node — its subtree travels with it.
+  const checked: { node: TaskNode; parent: TaskNode | null }[] = [];
+  const walk = (roots: TimelineNode[], parent: TaskNode | null): void => {
+    for (const n of roots) {
+      if (n.kind !== 'task') continue;
+      if (n.checked) {
+        if (!n.isEvent) checked.push({ node: n, parent });
+      } else {
+        walk(n.children, n);
+      }
+    }
+  };
+  walk(next.timeline, null);
+  if (checked.length === 0) return next;
+
+  // Precompute section markers against the original event positions before any
+  // splicing, so positional markers are stable.
+  const events = next.timeline.filter((n): n is TaskNode => n.kind === 'task' && n.isEvent);
+  const prepared = checked.map(({ node, parent }) => ({
+    node,
+    parent,
+    marker: parent ? null : undatedRootMarker(node, next.timeline, events),
+  }));
+
+  const rng = seededRng(1);
+  const taken = takenIds(next);
+  for (const { node, parent, marker } of prepared) {
+    removeNode(next.timeline, node);
+    if (parent) {
+      const pid = ensureId(parent, taken, rng);
+      node.props.parent = pid;
+    } else if (marker !== null) {
+      node.props.section = marker;
+    }
+    (next.archive ??= []).push(node);
+  }
+  return next;
+}
+
+/** Same marker rule as `complete`'s undatedSectionMarker, against saved events. */
+function undatedRootMarker(
+  node: TaskNode,
+  timeline: TimelineNode[],
+  events: TaskNode[],
+): string | null {
+  if (anchorDate(node)) return null;
+  const idx = sectionIndexByPosition(node, timeline);
+  if (idx === 0) return 'start';
+  return events[idx - 1]?.dates.due ?? 'start';
+}
+
+/** Remove a task node (by identity) from its tree, wherever it nests. */
+function removeNode(roots: TimelineNode[], target: TaskNode): boolean {
+  for (let i = 0; i < roots.length; i++) {
+    const n = roots[i];
+    if (!n || n.kind !== 'task') continue;
+    if (n === target) {
+      roots.splice(i, 1);
+      return true;
+    }
+    if (removeNode(n.children, target)) return true;
+  }
+  return false;
+}
+
+/* -------------------------------------------------------------------------- */
+/* events                                                                      */
+/* -------------------------------------------------------------------------- */
+
 /** Add an event (milestone). Events are always timeline roots. */
 export function addEvent(doc: TaskDocument, text: string, due: IsoDate): TaskDocument {
   return add(doc, { text, due, isEvent: true });

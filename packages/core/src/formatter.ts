@@ -28,6 +28,7 @@ import {
   sectionIndexByPosition,
   stableSort,
 } from './sections.js';
+import { archiveInTimeline } from './ops.js';
 
 const SENTINEL = '￿'; // sorts after any real date
 
@@ -188,19 +189,22 @@ function orderArchive(roots: TaskNode[]): TaskNode[] {
 }
 
 export function format(doc: TaskDocument): string {
+  // Completed tasks still in the timeline are canonicalized into the archive
+  // (with reversible parent/section bookkeeping), then placed as usual.
+  const d = archiveInTimeline(doc);
   const out: string[] = [];
 
-  if (doc.frontmatter !== null) {
+  if (d.frontmatter !== null) {
     out.push('---');
-    if (doc.frontmatter !== '') out.push(...doc.frontmatter.split('\n'));
+    if (d.frontmatter !== '') out.push(...d.frontmatter.split('\n'));
     out.push('---');
   }
-  if (doc.title !== null) {
+  if (d.title !== null) {
     if (out.length > 0) out.push('');
-    out.push(`# ${doc.title}`);
+    out.push(`# ${d.title}`);
   }
 
-  const { sections, events } = placeTimeline(doc.timeline);
+  const { sections, events } = placeTimeline(d.timeline);
   const timelineHasContent = sections.some((s) => s.length > 0) || events.length > 0;
   if (timelineHasContent && out.length > 0) out.push('');
 
@@ -220,11 +224,11 @@ export function format(doc: TaskDocument): string {
     }
   }
 
-  if (doc.archive !== null) {
+  if (d.archive !== null) {
     blockStart();
     out.push(ARCHIVE_HEADER);
     out.push('');
-    const ordered = orderArchive(doc.archive);
+    const ordered = orderArchive(d.archive);
     for (const node of ordered) renderNode(node, 0, out);
   }
 
