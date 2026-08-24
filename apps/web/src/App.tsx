@@ -20,6 +20,7 @@ import { TaskList, type TaskCallbacks } from './TaskList';
 import { Toolbar } from './Toolbar';
 import { StatusBar } from './StatusBar';
 import { TitleInput } from './TitleInput';
+import { ThemeToggle } from './ThemeToggle';
 import { useDocument } from './useFileDoc';
 
 const STORAGE_KEY = 'task-system:doc';
@@ -143,6 +144,7 @@ export function App() {
         >
           Clear
         </button>
+        <ThemeToggle />
       </header>
 
       <StatusBar issues={issues} />

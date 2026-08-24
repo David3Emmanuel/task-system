@@ -4,7 +4,7 @@
     -apple-system,
     'Segoe UI',
     sans-serif;
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #f7f7f8;
   --panel: #ffffff;
   --border: #e2e2e6;
@@ -15,6 +15,36 @@
   --warn: #d97706;
   --bad: #dc2626;
   --radius: 8px;
+}
+
+/* Dark theme:
+   - follow the OS when no explicit choice (no data-theme or data-theme="system")
+   - forced dark via data-theme="dark" */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #101216;
+    --panel: #171a21;
+    --border: #2a2e37;
+    --text: #e6e6eb;
+    --muted: #9aa0aa;
+    --accent: #818cf8;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101216;
+  --panel: #171a21;
+  --border: #2a2e37;
+  --text: #e6e6eb;
+  --muted: #9aa0aa;
+  --accent: #818cf8;
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
 }
 
 * {
@@ -385,4 +415,9 @@ textarea:focus {
   font-size: 13px;
   z-index: 20;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+button.theme-toggle {
+  padding: 2px 8px;
+  font-size: 15px;
+  line-height: 1.2;
 }
