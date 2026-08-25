@@ -217,7 +217,7 @@ can be restored to the same spot.
 | `START_AFTER_DUE` | error | `start` is later than `due`. |
 | `STRADDLES_EVENT` | warning | A task’s span (`endDate`) extends past the next event. |
 | `UNSUPPORTED_LINE` | warning | An unrecognized line was preserved verbatim. |
-| `ARCHIVE_NO_DONE` | warning | An archived root has no `✅` date. |
+| `ARCHIVE_NO_DONE` | info | An archived root has no `✅` date; ordering falls back to text. |
 | `DONE_NO_DATE` | info | A checked task has no `✅` date. |
 | `COMPLETED_IN_TIMELINE` | info | A completed task is still in the timeline. |
 

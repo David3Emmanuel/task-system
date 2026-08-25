@@ -139,11 +139,11 @@ export function validate(doc: TaskDocument): Issue[] {
 
   function walkArchive(task: TaskNode): void {
     if (!task.dates.done && !task.props.parent) {
-      // A completed root without a done date orders non-deterministically only via text.
+      // A completed root without a done date orders via text; allowed, notable.
       issues.push({
         code: 'ARCHIVE_NO_DONE',
-        severity: 'warning',
-        message: `Archived task "${task.text}" has no ✅ date.`,
+        severity: 'info',
+        message: `Archived task "${task.text}" has no ✅ date; ordering falls back to text.`,
         line: task.sourceLine,
       });
     }

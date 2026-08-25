@@ -110,13 +110,15 @@ describe('section bounds', () => {
 });
 
 describe('archive', () => {
-  test('ARCHIVE_NO_DONE: an archived root without a done date is a warning', () => {
+  test('ARCHIVE_NO_DONE: an archived root without a done date is info, not a warning', () => {
     const src = ['# T', '', '- [ ] A', '', '## Archive', '', '- [x] Old'].join('\n');
     const issues = validate(parse(src));
     expect(codes(issues)).toContain('ARCHIVE_NO_DONE');
+    expect(bySeverity(issues, 'info').some((i) => i.code === 'ARCHIVE_NO_DONE')).toBe(true);
+    expect(bySeverity(issues, 'warning').some((i) => i.code === 'ARCHIVE_NO_DONE')).toBe(false);
   });
 
-  test('an archived task with a done date does not warn', () => {
+  test('an archived task with a done date does not report ARCHIVE_NO_DONE', () => {
     const src = ['# T', '', '- [ ] A', '', '## Archive', '', '- [x] Old ✅ 2026-07-01'].join('\n');
     const issues = validate(parse(src));
     expect(codes(issues)).not.toContain('ARCHIVE_NO_DONE');
