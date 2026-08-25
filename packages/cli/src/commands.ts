@@ -161,14 +161,27 @@ export function cmdList(text: string, args: ParsedArgs): CommandResult {
 export function cmdAdd(text: string, args: ParsedArgs): CommandResult {
   const body = args.positionals.join(' ').trim();
   if (!body) return fail('add: task text is required.');
+
   const parent = optString(args, 'parent');
+  const parentLine = optString(args, 'parent-line');
+  let parentLocator: Locator | undefined;
+  if (parentLine !== undefined) {
+    const n = Number(parentLine);
+    if (!Number.isInteger(n) || n < 1) {
+      return fail('add: --parent-line must be a valid 1-based line number (as shown by `list`).');
+    }
+    parentLocator = { line: n - 1 };
+  } else if (parent !== undefined) {
+    parentLocator = { match: parent };
+  }
+
   const doc = add(parse(text), {
     text: body,
     start: optString(args, 'start'),
     due: optString(args, 'due'),
     created: optString(args, 'created'),
     isEvent: optFlag(args, 'event'),
-    parent: parent !== undefined ? { match: parent } : undefined,
+    parent: parentLocator,
   });
   return opResult(doc, optFlag(args, 'json'));
 }

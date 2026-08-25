@@ -89,6 +89,25 @@ describe('mutating commands persist canonical text', () => {
     expect(io.files.get(FILE)).toContain('- [ ] Gamma 📅 2026-08-20');
   });
 
+  test('add --parent nests a task under a matched parent', () => {
+    const r = run(['add', FILE, 'Subtask', '--parent', 'Alpha'], io);
+    expect(r.code).toBe(0);
+    expect(io.files.get(FILE)).toContain('  - [ ] Subtask'); // indented => nested
+  });
+
+  test('add --parent-line nests a task under the task at that line', () => {
+    // list prints Alpha at line 3 (1-based) for the seeded file.
+    const r = run(['add', FILE, 'Subtask', '--parent-line', '3'], io);
+    expect(r.code).toBe(0);
+    expect(io.files.get(FILE)).toContain('  - [ ] Subtask');
+  });
+
+  test('add --parent-line rejects a non-numeric line', () => {
+    const r = run(['add', FILE, 'Subtask', '--parent-line', 'abc'], io);
+    expect(r.code).toBe(2);
+    expect(io.files.get(FILE)).not.toContain('Subtask');
+  });
+
   test('set clears a date with an empty value', () => {
     run(['set', FILE, '--match', 'Alpha', '--due', ''], io);
     expect(io.files.get(FILE)).toContain('- [ ] Alpha\n');

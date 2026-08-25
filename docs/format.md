@@ -245,7 +245,7 @@ tsk <command> [file] [options]
   validate <file> [--json]             report constraint issues (exit 1 on error)
   format <file> [--write|--check]      canonicalize (stdout, in place, or verify)
   list <file> [--open|--done] [--json] list tasks
-  add <file> "<text>" [--start D --due D --created D --parent TEXT --event] [--json]
+  add <file> "<text>" [--start D --due D --created D --parent TEXT|--parent-line N --event] [--json]
   set <file> (--line N|--id X|--match T) [--text T --start D --due D --created D] [--json]
   complete <file> (--line N|--id X|--match T) --done DATE [--seed N] [--json]
   unarchive <file> (--line N|--id X|--match T) [--json]

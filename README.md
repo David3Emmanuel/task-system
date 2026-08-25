@@ -104,7 +104,7 @@ tsk <command> [file] [options]
   validate <file> [--json]             report constraint issues (exit 1 on error)
   format <file> [--write|--check]      canonicalize (stdout, in place, or verify)
   list <file> [--open|--done] [--json] list tasks
-  add <file> "<text>" [--start D --due D --created D --parent TEXT --event] [--json]
+  add <file> "<text>" [--start D --due D --created D --parent TEXT|--parent-line N --event] [--json]
   set <file> (--line N|--id X|--match T) [--text T --start D --due D --created D] [--json]
   complete <file> (--line N|--id X|--match T) --done DATE [--seed N] [--json]
   unarchive <file> (--line N|--id X|--match T) [--json]
@@ -123,6 +123,10 @@ tsk init > tasks.md
 # add a task and a milestone
 tsk add tasks.md "Write spec" --due 2026-03-06
 tsk event add tasks.md "Kickoff" --due 2026-03-02
+
+# nest a subtask under a parent (by text or by 1-based line)
+tsk add tasks.md "Get course reps contact" --parent "Emperoid needs course forms"
+tsk add tasks.md "Draft email" --parent-line 3
 
 # see what the tool reads back
 tsk list tasks.md
