@@ -314,13 +314,12 @@ textarea:focus {
   font-style: italic;
 }
 
-/* Inline add-subtask form */
+/* Inline add-subtask form (renders on its own line below the row) */
 .add-child {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
-  padding: 2px 2px 2px 4px;
+  padding: 3px 6px 3px 8px;
 }
 .child-indent {
   color: var(--muted);

@@ -175,47 +175,53 @@ function TaskRow({
   };
 
   return (
-    <div className={`row ${node.isEvent ? 'event' : ''} ${done ? 'done' : ''}`}>
-      <input
-        type="checkbox"
-        checked={node.checked}
-        disabled={node.isEvent || (region === 'timeline' && node.checked)}
-        title={node.isEvent ? 'Milestone' : undefined}
-        onChange={() => callbacks.onToggle(node, region)}
-      />
-      {node.isEvent && <span className="flag">🏁</span>}
-      <span className="text">{node.text}</span>
-      {node.dates.start && <Chip emoji={EMOJI.start} value={node.dates.start} kind="start" />}
-      {node.dates.due && <Chip emoji={EMOJI.due} value={node.dates.due} kind="due" />}
-      {done && <Chip emoji={EMOJI.done} value={done} kind="done" />}
-      {node.props.id && <span className="id">{node.props.id}</span>}
-      <span className="spacer" />
-      <div className="row-actions">
-        {canHaveChildren && (
+    <>
+      <div className={`row ${node.isEvent ? 'event' : ''} ${done ? 'done' : ''}`}>
+        <input
+          type="checkbox"
+          checked={node.checked}
+          disabled={node.isEvent || (region === 'timeline' && node.checked)}
+          title={node.isEvent ? 'Milestone' : undefined}
+          onChange={() => callbacks.onToggle(node, region)}
+        />
+        {node.isEvent && <span className="flag">🏁</span>}
+        <span className="text">{node.text}</span>
+        {node.dates.start && <Chip emoji={EMOJI.start} value={node.dates.start} kind="start" />}
+        {node.dates.due && <Chip emoji={EMOJI.due} value={node.dates.due} kind="due" />}
+        {done && <Chip emoji={EMOJI.done} value={done} kind="done" />}
+        {node.props.id && <span className="id">{node.props.id}</span>}
+        <span className="spacer" />
+        <div className="row-actions">
+          {canHaveChildren && (
+            <button
+              className="ghost"
+              title="Add subtask"
+              onClick={() => {
+                setChildText('');
+                setAddingChild(true);
+              }}
+            >
+              +
+            </button>
+          )}
           <button
             className="ghost"
-            title="Add subtask"
+            title="Edit"
             onClick={() => {
-              setChildText('');
-              setAddingChild(true);
+              setDraft({
+                text: node.text,
+                start: node.dates.start ?? '',
+                due: node.dates.due ?? '',
+              });
+              setEditing(true);
             }}
           >
-            +
+            ✎
           </button>
-        )}
-        <button
-          className="ghost"
-          title="Edit"
-          onClick={() => {
-            setDraft({ text: node.text, start: node.dates.start ?? '', due: node.dates.due ?? '' });
-            setEditing(true);
-          }}
-        >
-          ✎
-        </button>
-        <button className="ghost danger" title="Delete" onClick={() => callbacks.onDelete(node)}>
-          ✕
-        </button>
+          <button className="ghost danger" title="Delete" onClick={() => callbacks.onDelete(node)}>
+            ✕
+          </button>
+        </div>
       </div>
       {addingChild && (
         <div className="add-child">
@@ -240,7 +246,7 @@ function TaskRow({
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
