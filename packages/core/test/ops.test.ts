@@ -110,6 +110,16 @@ describe('complete moves tasks to the archive', () => {
     expect(pid).toBeTruthy();
     expect(out.archive?.[0]?.props.parent).toBe(pid);
   });
+
+  test('completing a parent keeps its open children active in the timeline', () => {
+    const doc = parse('- [ ] Parent\n  - [ ] OpenChild\n  - [ ] Other\n');
+    const out = complete(doc, { match: 'Parent' }, { done: '2026-08-12', rng: rng() });
+    expect(out.archive?.[0]?.text).toBe('Parent');
+    expect(out.archive?.[0]?.children).toHaveLength(0);
+    const open = out.timeline.filter((n): n is TaskNode => n.kind === 'task');
+    expect(open.some((n) => n.text === 'OpenChild')).toBe(true);
+    expect(open.some((n) => n.text === 'Other')).toBe(true);
+  });
 });
 
 describe('unarchive inverts complete', () => {
@@ -198,10 +208,29 @@ describe('archiveInTimeline (format auto-archive)', () => {
     expect(out.archive?.[0]?.props.section).toBe('2026-08-10');
   });
 
-  test('whole subtree travels with a checked parent', () => {
+  test('open children of a checked parent stay active in the timeline (not archived)', () => {
     const doc = parse('- [x] Parent ✅ 2026-08-01\n  - [ ] Child\n');
     const out = archiveInTimeline(doc);
-    expect(out.timeline.length).toBe(0);
+    // Parent is archived; its open Child is promoted back into the timeline.
+    expect(out.timeline.some((n) => n.kind === 'task' && n.text === 'Child')).toBe(true);
+    expect(out.archive?.[0]?.checked).toBe(true);
+    expect(out.archive?.[0]?.children).toHaveLength(0);
+  });
+
+  test('checked descendants still travel with a checked parent', () => {
+    const doc = parse(
+      '- [x] Parent ✅ 2026-08-01\n  - [x] DoneChild ✅ 2026-08-01\n  - [ ] OpenChild\n',
+    );
+    const out = archiveInTimeline(doc);
+    // DoneChild archives under Parent; OpenChild stays in the timeline.
+    expect(out.archive?.[0]?.children[0]?.text).toBe('DoneChild');
+    expect(out.timeline.some((n) => n.kind === 'task' && n.text === 'OpenChild')).toBe(true);
+  });
+
+  test('a parent whose children are all done archives the whole subtree', () => {
+    const doc = parse('- [x] Parent ✅ 2026-08-01\n  - [x] Child ✅ 2026-08-01\n');
+    const out = archiveInTimeline(doc);
+    expect(out.timeline).toHaveLength(0);
     expect(out.archive?.[0]?.children[0]?.text).toBe('Child');
   });
 
