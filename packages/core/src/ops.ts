@@ -248,10 +248,8 @@ export function complete(doc: TaskDocument, loc: Locator, opts: CompleteOptions)
   const node = found.node;
   const marker = undatedSectionMarker(node, found, next.timeline);
 
-  // Only the completed task's done descendants are archived; its open children
-  // stay active in the timeline, promoted into its place.
-  const openChildren = pruneOpen(node);
-  found.siblings.splice(found.index, 1, ...openChildren);
+  // Splice the subtree out of the timeline.
+  found.siblings.splice(found.index, 1);
 
   // Mark the root done.
   node.checked = true;
@@ -415,9 +413,7 @@ export function archiveInTimeline(doc: TaskDocument): TaskDocument {
   const rng = seededRng(1);
   const taken = takenIds(next);
   for (const { node, parent, marker } of prepared) {
-    // Keep open children active in the timeline; only done descendants archive.
-    const openChildren = pruneOpen(node);
-    replaceNode(next.timeline, node, openChildren);
+    removeNode(next.timeline, node);
     if (parent) {
       const pid = ensureId(parent, taken, rng);
       node.props.parent = pid;
@@ -441,41 +437,16 @@ function undatedRootMarker(
   return events[idx - 1]?.dates.due ?? 'start';
 }
 
-/**
- * Keep a completed task's OPEN (unchecked) descendants active in the timeline
- * by detaching them from the task and returning them (in order) to be promoted
- * into the task's position. The task's `children` are left holding only its
- * checked descendants, which travel with it to the archive.
- */
-function pruneOpen(node: TaskNode): TaskNode[] {
-  const promoted: TaskNode[] = [];
-  const kept: TaskNode[] = [];
-  for (const child of node.children) {
-    if (child.checked) {
-      kept.push(child);
-      promoted.push(...pruneOpen(child));
-    } else {
-      promoted.push(child);
-    }
-  }
-  node.children = kept;
-  return promoted;
-}
-
-/**
- * Replace a task node (by identity) with `replacements` at its position, so
- * promoted open children take its place in the timeline. Returns false if the
- * node is not found.
- */
-function replaceNode(roots: TimelineNode[], target: TaskNode, replacements: TaskNode[]): boolean {
+/** Remove a task node (by identity) from its tree, wherever it nests. */
+function removeNode(roots: TimelineNode[], target: TaskNode): boolean {
   for (let i = 0; i < roots.length; i++) {
     const n = roots[i];
     if (!n || n.kind !== 'task') continue;
     if (n === target) {
-      roots.splice(i, 1, ...replacements);
+      roots.splice(i, 1);
       return true;
     }
-    if (replaceNode(n.children, target, replacements)) return true;
+    if (removeNode(n.children, target)) return true;
   }
   return false;
 }
