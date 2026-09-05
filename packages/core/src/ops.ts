@@ -379,20 +379,20 @@ function reinsertUndated(
  * restores it, and it never invents a `✅ done` date (no wall-clock).
  *
  * A checked task's whole subtree travels with it (nested tasks are not split).
- * Events are never auto-archived.
+ * Completed events are auto-archived too.
  */
 export function archiveInTimeline(doc: TaskDocument): TaskDocument {
   const next = cloneDoc(doc);
   if (next.timeline.length === 0) return next;
 
-  // Collect checked, non-event tasks before mutating. We do not recurse into a
-  // checked node — its subtree travels with it.
+  // Collect checked tasks and events before mutating. We do not recurse into a
+  // checked node — its subtree travels with it. Events can be completed too.
   const checked: { node: TaskNode; parent: TaskNode | null }[] = [];
   const walk = (roots: TimelineNode[], parent: TaskNode | null): void => {
     for (const n of roots) {
       if (n.kind !== 'task') continue;
       if (n.checked) {
-        if (!n.isEvent) checked.push({ node: n, parent });
+        checked.push({ node: n, parent });
       } else {
         walk(n.children, n);
       }

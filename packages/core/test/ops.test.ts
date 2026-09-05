@@ -205,12 +205,17 @@ describe('archiveInTimeline (format auto-archive)', () => {
     expect(out.archive?.[0]?.children[0]?.text).toBe('Child');
   });
 
-  test('events are never auto-archived', () => {
-    const doc = parse('- [x] 🏁 Bad event 📅 2026-08-10\n- [ ] A\n');
+  test('a completed event auto-archives like any completed task', () => {
+    const doc = parse('- [x] 🏁 Done milestone 📅 2026-08-10 ✅ 2026-08-10\n- [ ] A\n');
     const out = archiveInTimeline(doc);
-    expect(out.timeline.some((n) => n.kind === 'task' && n.isEvent && n.text === 'Bad event')).toBe(
-      true,
-    );
+    expect(out.timeline.some((n) => n.kind === 'task' && n.isEvent)).toBe(false);
+    expect(out.archive?.[0]?.isEvent).toBe(true);
+  });
+
+  test('an open event is never auto-archived', () => {
+    const doc = parse('- [ ] 🏁 Upcoming 📅 2026-08-10\n- [ ] A\n');
+    const out = archiveInTimeline(doc);
+    expect(out.timeline.some((n) => n.kind === 'task' && n.isEvent)).toBe(true);
     expect(out.archive ?? []).toHaveLength(0);
   });
 });

@@ -88,10 +88,9 @@ export function App() {
 
   const callbacks: TaskCallbacks = {
     onToggle(node, region) {
-      if (node.isEvent) return;
       if (region === 'timeline') {
         // Completed-in-timeline can't be reopened with the current ops; the
-        // archive is the reopen path.
+        // archive is the reopen path. Events are completed the same way.
         if (node.checked) return;
         run((d) => complete(d, locatorFor(node), { done: today(), rng: seededRng(1) }));
       } else {

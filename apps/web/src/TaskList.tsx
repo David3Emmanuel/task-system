@@ -180,8 +180,8 @@ function TaskRow({
         <input
           type="checkbox"
           checked={node.checked}
-          disabled={node.isEvent || (region === 'timeline' && node.checked)}
-          title={node.isEvent ? 'Milestone' : undefined}
+          disabled={region === 'timeline' && node.checked}
+          title={node.isEvent ? 'Complete this milestone' : undefined}
           onChange={() => callbacks.onToggle(node, region)}
         />
         {node.isEvent && <span className="flag">🏁</span>}
