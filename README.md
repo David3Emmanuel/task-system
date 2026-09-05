@@ -36,6 +36,9 @@ can all read and write the same source of truth without fighting over it.
   auto-archives any completed task still in the timeline (with reversible
   bookkeeping), so a checked task you never explicitly archived lands in the
   Archive canonically.
+- **Recurring tasks** — a `🔁 every week` style rule (no wall-clock); completing
+  one archives the finished occurrence and rolls the task forward to its next
+  date (daily/weekly/monthly/yearly and `N` days/weeks/months/years).
 - **Two surfaces** — a `tsk` CLI and a React SPA that both talk to the same
   core library.
 

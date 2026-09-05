@@ -1,5 +1,7 @@
 export * from './model.js';
 export * from './ids.js';
+export { parseRecurrence, nextDate, hasRecurrence } from './recurrence.js';
+export type { Recurrence, RecurUnit } from './recurrence.js';
 export { parse } from './parser.js';
 export { format, formatText, serializeLine } from './formatter.js';
 export { validate, hasBlockingErrors } from './validate.js';

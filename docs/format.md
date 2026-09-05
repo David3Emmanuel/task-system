@@ -59,8 +59,9 @@ A task is a checkbox bullet:
   - an optional **event marker** `🏁`,
   - recognized **date fields** (emoji and ASCII forms),
   - tool **props** (`[id::]`, `[parent::]`, `[section::]`),
-  - free **text**, which may contain unmodeled tokens (`#tags`, `⏫`, `🔁`, prose)
-    kept verbatim in their original relative order.
+  - free **text**, which may contain unmodeled tokens (`#tags`, `⏫`, prose) kept
+    verbatim in their original relative order — except `🔁`, which is read as a
+    recurrence rule (below).
 
 ### Date fields
 
@@ -78,6 +79,25 @@ The emoji form is canonical. Fields are extracted from anywhere on the line;
 the **first occurrence of a repeated field wins** and later duplicates are
 dropped. A date-like token that is not a valid `YYYY-MM-DD` is left in the text
 and never promoted to a real field.
+
+### Recurrence
+
+A task can carry a `🔁` recurrence rule in its text (Obsidian-style). When a
+recurring task is completed, it **rolls forward**: the completed occurrence is
+archived and a new open occurrence is placed in the timeline with its
+`🛫`/`📅` dates advanced by the rule. The rule is anchored to the task's own
+dates — there is **no wall-clock**.
+
+```
+- [ ] Mow lawn 🔁 every week 📅 2026-09-01
+- [ ] Standup notes 🔁 daily
+- [ ] Backup 🔁 every 2 weeks
+```
+
+Accepted forms (after `🔁`, case-insensitive): `daily` / `every day` /
+`every <n> days`, `weekly` / `every week` / `biweekly` / `every <n> weeks`,
+`monthly` / `every month` / `every <n> months`, `yearly` / `every year` /
+`every <n> years`. Removing the `🔁` makes it a normal one-off task again.
 
 ### Events (milestones)
 

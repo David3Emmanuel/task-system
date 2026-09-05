@@ -16,6 +16,7 @@ import type { IsoDate, TaskDocument, TaskNode, TimelineNode } from './model.js';
 import { makeTask, walkAll } from './model.js';
 import { mintId, seededRng, type Rng } from './ids.js';
 import { anchorDate, sectionIndexByPosition } from './sections.js';
+import { nextDate, parseRecurrence, type Recurrence } from './recurrence.js';
 
 /* -------------------------------------------------------------------------- */
 /* Locators                                                                    */
@@ -248,8 +249,15 @@ export function complete(doc: TaskDocument, loc: Locator, opts: CompleteOptions)
   const node = found.node;
   const marker = undatedSectionMarker(node, found, next.timeline);
 
-  // Splice the subtree out of the timeline.
-  found.siblings.splice(found.index, 1);
+  // A recurring task rolls forward: archive this completed occurrence and
+  // insert the next open occurrence where this one was in the timeline.
+  const rule = parseRecurrence(node.text);
+  if (rule) {
+    found.siblings.splice(found.index, 1, makeRecurringNext(node, rule));
+  } else {
+    // Splice the subtree out of the timeline.
+    found.siblings.splice(found.index, 1);
+  }
 
   // Mark the root done.
   node.checked = true;
@@ -266,6 +274,18 @@ export function complete(doc: TaskDocument, loc: Locator, opts: CompleteOptions)
   if (next.archive === null) next.archive = [];
   next.archive.push(node);
   return next;
+}
+
+/** Build the next open occurrence of a recurring task (dates advanced by the rule). */
+function makeRecurringNext(node: TaskNode, rule: Recurrence): TaskNode {
+  const dates: TaskNode['dates'] = {};
+  if (node.dates.start) dates.start = nextDate(node.dates.start, rule);
+  if (node.dates.due) dates.due = nextDate(node.dates.due, rule);
+  return makeTask(node.text, {
+    isEvent: node.isEvent,
+    dates,
+    comments: [...node.comments],
+  });
 }
 
 /**
