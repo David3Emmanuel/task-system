@@ -44,6 +44,86 @@ describe('ordering: undated tasks ride with the dated task above them', () => {
   });
 });
 
+describe('event placement (minimal movement, clamp toward own dates)', () => {
+  test('a due date before the first event pulls the task in front of it', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Due Jan 📅 2026-01-15',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    expect(rt(src)).toBe(
+      [
+        '- [ ] Due Jan 📅 2026-01-15',
+        '',
+        '- [ ] 🏁 E1 📅 2026-03-01',
+        '',
+        '- [ ] 🏁 E2 📅 2026-09-01',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  test('a start date after an event pushes the task behind it', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Start Jun 🛫 2026-06-15',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    const out = rt(src);
+    expect(out.indexOf('Start Jun')).toBeGreaterThan(out.indexOf('🏁 E1'));
+    expect(out.indexOf('Start Jun')).toBeLessThan(out.indexOf('🏁 E2'));
+  });
+
+  test('a task already on the legal side does not move (due after the last event)', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Due Dec 📅 2026-12-15',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    const out = rt(src);
+    expect(out.indexOf('Due Dec')).toBeGreaterThan(out.indexOf('🏁 E1'));
+    expect(out.indexOf('Due Dec')).toBeLessThan(out.indexOf('🏁 E2'));
+  });
+});
+
+describe('undated parents split at events; dated parents never split', () => {
+  test('an undated parent whose children span an event splits', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] P',
+      '  - [ ] A 📅 2026-02-01',
+      '  - [ ] B 📅 2026-06-01',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    expect(rt(src)).toBe(
+      [
+        '- [ ] P (part 1) 📅 2026-02-28',
+        '  - [ ] A 📅 2026-02-01',
+        '',
+        '- [ ] 🏁 E1 📅 2026-03-01',
+        '',
+        '- [ ] P (part 2) 🛫 2026-03-02 📅 2026-08-31',
+        '  - [ ] B 📅 2026-06-01',
+        '',
+        '- [ ] 🏁 E2 📅 2026-09-01',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  test('a dated parent keeps its children even when a child disagrees', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Dated parent 📅 2026-06-01',
+      '  - [ ] Late child 📅 2026-12-01',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    const out = rt(src);
+    expect(out).not.toContain('(part');
+    expect(out.indexOf('Late child')).toBeLessThan(out.indexOf('🏁 E2'));
+  });
+});
+
 describe('idempotence', () => {
   const samples = [
     '- [ ] A 📅 2026-08-10\n- [ ] B 🛫 2026-08-02\n',

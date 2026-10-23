@@ -19,7 +19,17 @@
 
 import type { IsoDate, TaskDocument, TaskNode, TimelineNode, UnknownNode } from './model.js';
 import { ARCHIVE_HEADER, EMOJI } from './model.js';
-import { anchorDate, cmpStr, cmpText, sortWithAttached, stableSort } from './sections.js';
+import {
+  anchorDate,
+  cmpStr,
+  cmpText,
+  collectEvents,
+  sectionIndexByDate,
+  sectionIndexByPosition,
+  sortWithAttached,
+  stableSort,
+} from './sections.js';
+import { nextDate } from './recurrence.js';
 import { archiveInTimeline } from './ops.js';
 
 const SENTINEL = '￿'; // sorts after any real date
@@ -77,14 +87,9 @@ function compareSiblings(a: TaskNode, b: TaskNode): number {
   return cmpStr(ad, bd) || cmpText(a.text, b.text) || cmpStr(serializeLine(a), serializeLine(b));
 }
 
-function sortChildren(node: TaskNode): TaskNode {
-  const kids = sortWithAttached(node.children, isDated, anchorKey).map(sortChildren);
-  return { ...node, children: kids };
-}
-
-/** A node that carries its own date (start or due) — the sortable anchors. */
+/** A node that carries its own date (start or due) — a sortable anchor. */
 function isDated(node: TaskNode): boolean {
-  return anchorDate(node) !== undefined;
+  return node.dates.start !== undefined || node.dates.due !== undefined;
 }
 
 /** Sort key for a dated node: its anchor date. */
@@ -92,26 +97,153 @@ function anchorKey(node: TaskNode): string {
   return anchorDate(node) ?? '';
 }
 
-/**
- * Order the whole timeline as one flat list. Dated tasks and events are sorted
- * by date; an undated task rides with the dated task above it (leading undated
- * tasks stay on top). Unknown lines stay position-stable.
- */
-function orderTimeline(roots: TimelineNode[]): TimelineNode[] {
-  const unknownAt = new Map<number, UnknownNode>();
-  const tasks: TaskNode[] = [];
-  roots.forEach((n, i) => {
-    if (n.kind === 'unknown') unknownAt.set(i, n);
-    else tasks.push(sortChildren(n));
-  });
-  const ordered = sortWithAttached(tasks, isDated, anchorKey);
-  const result: TimelineNode[] = [];
-  let t = 0;
-  for (let i = 0; i < roots.length; i++) {
-    if (unknownAt.has(i)) result.push(unknownAt.get(i)!);
-    else result.push(ordered[t++]!);
+/** Number of events strictly before `date`. */
+function eventsBefore(date: string, eventDates: string[]): number {
+  let count = 0;
+  for (const d of eventDates) {
+    if (d < date) count++;
+    else break;
   }
-  return result;
+  return count;
+}
+
+/**
+ * Legal partition range implied by a task's own dates, clamped toward the
+ * position it already occupies (minimal movement):
+ *   start → cannot sit before the last event at or before it;
+ *   due   → cannot sit after the first event after it.
+ */
+function clampPartition(current: number, task: TaskNode, eventDates: string[], n: number): number {
+  const lower = task.dates.start ? sectionIndexByDate(task.dates.start, eventDates) : 0;
+  const upper = task.dates.due ? eventsBefore(task.dates.due, eventDates) : n;
+  const lo = Math.min(lower, upper);
+  const hi = Math.max(lower, upper);
+  return Math.min(Math.max(current, lo), hi);
+}
+
+interface Placement {
+  /** partition index -> ordered nodes */
+  partitions: TimelineNode[][];
+  events: TaskNode[];
+}
+
+/**
+ * Place the timeline by events:
+ *   - a dated task is clamped toward its current partition (minimal movement);
+ *   - a dated parent forces its subtree into the parent's partition;
+ *   - an undated task follows its children (or the dated sibling above it);
+ *   - a fully undated parent whose children land in different partitions splits.
+ */
+function placeTimeline(roots: TimelineNode[]): Placement {
+  const events = collectEvents(roots);
+  const eventDates = events.map((e) => e.dates.due ?? '');
+  const n = eventDates.length;
+  const part = new Map<TaskNode, number>();
+
+  function force(node: TaskNode, p: number): void {
+    part.set(node, p);
+    for (const child of node.children) force(child, p);
+  }
+
+  function assignUndated(node: TaskNode, p: number): number {
+    part.set(node, p);
+    let anchor = p;
+    for (const child of sortWithAttached(node.children, isDated, anchorKey)) {
+      anchor = isDated(child) ? assign(child, p) : assignUndated(child, anchor);
+    }
+    return p;
+  }
+
+  function assign(node: TaskNode, current: number): number {
+    if (isDated(node)) {
+      const p = clampPartition(current, node, eventDates, n);
+      part.set(node, p);
+      for (const child of node.children) force(child, p);
+      return p;
+    }
+    let anchor = current;
+    const childParts: number[] = [];
+    for (const child of sortWithAttached(node.children, isDated, anchorKey)) {
+      if (isDated(child)) {
+        anchor = assign(child, current);
+        childParts.push(anchor);
+      } else {
+        anchor = assignUndated(child, anchor);
+        childParts.push(anchor);
+      }
+    }
+    const p =
+      childParts.length > 0 && childParts.every((x) => x === childParts[0])
+        ? childParts[0]!
+        : current;
+    part.set(node, p);
+    return p;
+  }
+
+  for (const node of roots) {
+    if (node.kind !== 'task' || node.isEvent) continue;
+    assign(node, sectionIndexByPosition(node, roots));
+  }
+
+  function partitionsOf(node: TaskNode): Set<number> {
+    const set = new Set<number>([part.get(node)!]);
+    for (const child of node.children) {
+      for (const x of partitionsOf(child)) set.add(x);
+    }
+    return set;
+  }
+
+  function fragment(node: TaskNode, q: number): TaskNode {
+    const kids = node.children
+      .filter((child) => partitionsOf(child).has(q))
+      .map((child) => fragment(child, q));
+    return { ...node, children: sortWithAttached(kids, isDated, anchorKey) };
+  }
+
+  type Entry = { kind: 'task'; node: TaskNode } | { kind: 'unknown'; node: UnknownNode };
+  const entries: Entry[][] = Array.from({ length: n + 1 }, () => []);
+
+  for (const node of roots) {
+    if (node.kind === 'unknown') {
+      entries[sectionIndexByPosition(node, roots)]!.push({ kind: 'unknown', node });
+      continue;
+    }
+    if (node.isEvent) continue;
+    const ps = [...partitionsOf(node)].sort((a, b) => a - b);
+    ps.forEach((q, idx) => {
+      const frag = fragment(node, q);
+      if (ps.length > 1) {
+        frag.text = `${node.text} (part ${idx + 1})`;
+        if (!node.dates.start && !node.dates.due) {
+          frag.dates = {
+            start: q > 0 ? nextDate(eventDates[q - 1]!, { count: 1, unit: 'day' }) : undefined,
+            due: q < n ? nextDate(eventDates[q]!, { count: -1, unit: 'day' }) : undefined,
+          };
+        }
+      }
+      entries[q]!.push({ kind: 'task', node: frag });
+    });
+  }
+
+  // Sort tasks within each partition; unknown lines keep their relative spot.
+  const partitions: TimelineNode[][] = entries.map((items) => {
+    const unknowns: { at: number; node: UnknownNode }[] = [];
+    const tasks: TaskNode[] = [];
+    items.forEach((e, j) => {
+      if (e.kind === 'unknown') unknowns.push({ at: j, node: e.node });
+      else tasks.push(e.node);
+    });
+    const sorted = sortWithAttached(tasks, isDated, anchorKey);
+    const out: TimelineNode[] = [];
+    let t = 0;
+    for (let j = 0; j < items.length; j++) {
+      const u = unknowns.find((x) => x.at === j);
+      out.push(u ? u.node : sorted[t++]!);
+    }
+    return out;
+  });
+
+  return { partitions, events };
 }
 
 function renderNode(node: TimelineNode, depth: number, out: string[]): void {
@@ -169,14 +301,23 @@ export function format(doc: TaskDocument): string {
     out.push(`# ${d.title}`);
   }
 
-  const ordered = orderTimeline(d.timeline);
-  if (ordered.length > 0 && out.length > 0) out.push('');
+  const { partitions, events } = placeTimeline(d.timeline);
+  const hasContent = partitions.some((p) => p.length > 0) || events.length > 0;
+  if (hasContent && out.length > 0) out.push('');
 
   const blockStart = () => {
     if (out.length > 0 && out[out.length - 1] !== '') out.push('');
   };
 
-  for (const node of ordered) renderNode(node, 0, out);
+  for (let p = 0; p < partitions.length; p++) {
+    const nodes = partitions[p]!;
+    for (const node of nodes) renderNode(node, 0, out);
+    if (p < events.length) {
+      if (nodes.length > 0) out.push('');
+      renderNode(events[p]!, 0, out);
+      if (p + 1 < partitions.length) out.push('');
+    }
+  }
 
   if (d.archive !== null) {
     blockStart();

@@ -200,19 +200,35 @@ A serialized line uses this order:
 
 ## 5. Ordering
 
-The timeline is one flat list. **Dated tasks and events are sorted by their anchor
-date** (`start ?? due`); an **undated task rides with the dated task above it**
-(authoring it after a task keeps it there when that task moves). Undated tasks
-before the first dated one stay at the top. Equal dates keep authored order.
-Events are ordinary dated nodes — they do **not** partition the timeline or place
-anything.
+Events partition the timeline. With events `E1 < E2 < …`, the partitions are
+`P0` (before `E1`), `P1` (`E1..E2`), and so on.
 
-- Children are ordered by the same rule, recursively.
-- Unknown lines (prose the parser can't interpret) stay position-stable.
-- `complete` / `unarchive` restore a nested task under its parent via
-  `[parent::]`. Top-level position is not stored, so an undated root unarchives to
-  the end of the timeline. (The old `[section::]` hint is no longer written; any
-  that remain are preserved but ignored.)
+A task's **current** partition is the number of events above it in the file. Its
+**legal range** comes from its own dates:
+
+- `start` → cannot sit before the last event at or before it (`lower`)
+- `due` → cannot sit after the first event after it (`upper`)
+
+The task is **clamped** into `[lower, upper]`: it moves only when its current
+position violates its own dates, and then only to the nearest legal partition. A
+task with no dates rides with the dated task above it; leading undated tasks stay
+on top. Within a partition, tasks sort by anchor date (`start ?? due`); equal
+dates keep authored order.
+
+Nesting:
+
+- A parent with `start` and/or `due` forces its whole subtree into the parent's
+  partition. A child whose dates disagree is a mistake to fix, not a reason to
+  split.
+- A fully undated parent follows its children; if they land in different
+  partitions it splits into `(part N)` fragments, each carrying one-sided clamped
+  dates (`📅 E−1` before the boundary, `🛫 E+1` after it — never an inverted pair).
+- Unknown (prose) lines stay position-stable.
+
+`complete` / `unarchive` restore a nested task under its parent via `[parent::]`.
+Top-level position is not stored, so an undated root unarchives to the end of the
+timeline. (The old `[section::]` hint is no longer written; any that remain are
+preserved but ignored.)
 
 ---
 
