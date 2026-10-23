@@ -77,13 +77,6 @@ export function nextDate(iso: string, rule: Recurrence): string {
   return addMonths(y, mo, d, rule.count * 12); // year
 }
 
-/** Shift an ISO `YYYY-MM-DD` date by ±N days. */
-export function shiftDate(iso: string, days: number): string {
-  const [y, mo, d] = iso.split('-').map(Number);
-  if (!y || !mo || !d) return iso;
-  return addDays(y, mo, d, days);
-}
-
 function addDays(y: number, mo: number, d: number, n: number): string {
   const ms = Date.UTC(y, mo - 1, d) + n * 86_400_000;
   const dt = new Date(ms);
