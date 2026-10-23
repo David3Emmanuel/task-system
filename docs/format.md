@@ -7,7 +7,7 @@ canonical form that is **idempotent**, **confluent** (input order does not matte
 and **id-stable** (it never invents or strips tool properties).
 
 This document is the single reference for the format. The parser, formatter,
-validator, and section logic in `@task-system/core` are the implementation; see
+validator, and ordering logic in `@task-system/core` are the implementation; see
 `src/model.ts`, `src/parser.ts`, `src/formatter.ts`, `src/validate.ts`, and
 `src/sections.ts`.
 
@@ -101,9 +101,9 @@ Accepted forms (after `🔁`, case-insensitive): `daily` / `every day` /
 
 ### Events (milestones)
 
-A task bearing the `🏁` marker is an **event**. Events are always top-level,
-carry a single `📅 due` date, and partition the timeline into sections (see
-§5). They are conventionally left open (`[ ]`).
+A task bearing the `🏁` marker is an **event**. Events are always top-level and
+carry a single `📅 due` date. They are sorted among the tasks by that date; they
+do not partition the timeline. They are conventionally left open (`[ ]`).
 
 ```
 - [ ] 🏁 Kickoff 📅 2026-03-02
@@ -119,13 +119,13 @@ never invents or strips them.
 | --- | --- |
 | `[id:: <base36>]` | Stable identifier, minted when a task needs a cross-region reference. |
 | `[parent:: <id>]` | Link to a parent living in a different region (used by archiving). |
-| `[section:: <event-date>\|start]` | Restore hint for an archived undated task. |
+| `[section:: <event-date>\|start]` | Legacy; no longer written. Preserved if present. |
 
 Example:
 
 ```
 - [ ] Parent [id:: 3f9k2a]
-- [x] Child ✅ 2026-03-01 [parent:: 3f9k2a] [section:: start]
+- [x] Child ✅ 2026-03-01 [parent:: 3f9k2a]
 ```
 
 ---
@@ -172,53 +172,44 @@ through formatting untouched. This guarantees round-tripping hand-edited files.
 
 - **Idempotent**: `format(format(x)) === format(x)`.
 - **Confluent**: the canonical form depends only on content, not on the input
-  ordering of siblings or sections (a total-order tiebreak makes the sort unique).
+  ordering of siblings (a total-order tiebreak makes the sort unique).
 - **No wall-clock**: output is a pure function of the AST; a `✅ done` date is
   never invented.
-- **Prop-stable**: the formatter never invents or strips `[id::]`, `[parent::]`,
-  `[section::]` — *except* when it canonicalizes a completed task into the
-  archive (below), where it adds the minimal reversible bookkeeping that
-  `complete` uses. Otherwise props are untouched.
+- **Prop-stable**: the formatter never invents or strips `[id::]`, `[parent::]` —
+  *except* when it canonicalizes a completed task into the archive (below), where
+  it adds the minimal reversible bookkeeping that `complete` uses. Otherwise props
+  are untouched.
 
 ### Auto-archiving
 
 A completed task (`[x]` with a `✅` date) that was never explicitly archived is
 moved into the archive by `format` (this is the canonical state). It uses the
-same `[id::]` / `[parent::]` / `[section::]` bookkeeping as `complete`, so
-`unarchive` still restores it to its original parent/section. A checked task's
-subtree travels with it, and events are never auto-archived. `format` never
-adds a `✅` date, so a checked task without one is archived as-is.
+same `[parent::]` bookkeeping as `complete`, so `unarchive` still restores it
+under its parent. A checked task's subtree travels with it (including completed
+events). `format` never adds a `✅` date, so a checked task without one is
+archived as-is.
 
 A serialized line uses this order:
 
 ```
-- [x] Text 🛫 start 📅 due ✅ done ➕ created [id:: x] [parent:: y] [section:: z]
+- [x] Text 🛫 start 📅 due ✅ done ➕ created [id:: x] [parent:: y]
 ```
 
 ---
 
-## 5. Section model
+## 5. Ordering
 
-Top-level events partition the timeline. With event dates `E0 < E1 < …`, the
-sections are:
+The timeline is one flat, canonically ordered list. Events are ordinary nodes
+sorted among the tasks by their date — they do **not** partition the timeline or
+place anything.
 
-```
-S0 (before E0)  |  E0  |  S1 (E0..E1)  |  E1  |  S2 (E1..E2)  |  …
-```
-
-Placement rules:
-
-- **Dated tasks** (open) are placed by their **anchor date** — `start ?? due` —
-  into the section whose index is `count(events with date <= anchor)`. A task
-  whose anchor equals an event date lands in the section *after* that event.
-- **Undated or completed** top-level tasks are placed by their **original file
-  position** (count of events before them).
-- Within a section, order is **open-dated → open-undated → completed**, each by a
-  total-order sort (dates, then text, then the serialized line as a final tiebreak).
-
-The `complete` / `unarchive` operations are designed as exact inverses: a nested
-completion records `[parent::]`, and an undated root records `[section::]` so it
-can be restored to the same spot.
+- Order is **open-dated → open-undated → completed**, each by a total-order sort
+  (dates, then text, then the serialized line as the final tiebreak). Events sort
+  with the open-dated group by their `📅 due`.
+- Unknown lines stay position-stable.
+- `complete` / `unarchive` are inverses: a nested completion records
+  `[parent::]` so `unarchive` re-nests it. (The old `[section::]` hint is no
+  longer written; any that remain are preserved but ignored.)
 
 ---
 
@@ -233,9 +224,7 @@ can be restored to the same spot.
 | Code | Severity | Meaning |
 | --- | --- | --- |
 | `EVENT_NO_DATE` | error | Event has no `📅` date. |
-| `EVENT_NOT_INCREASING` | error | Event dates do not strictly increase in file order. |
 | `START_AFTER_DUE` | error | `start` is later than `due`. |
-| `STRADDLES_EVENT` | warning | A task’s span (`endDate`) extends past the next event. |
 | `UNSUPPORTED_LINE` | warning | An unrecognized line was preserved verbatim. |
 | `ARCHIVE_NO_DONE` | info | An archived root has no `✅` date; ordering falls back to text. |
 | `DONE_NO_DATE` | info | A checked task has no `✅` date. |

@@ -19,15 +19,7 @@
 
 import type { IsoDate, TaskDocument, TaskNode, TimelineNode, UnknownNode } from './model.js';
 import { ARCHIVE_HEADER, EMOJI } from './model.js';
-import {
-  anchorDate,
-  cmpStr,
-  cmpText,
-  collectEvents,
-  sectionIndexByDate,
-  sectionIndexByPosition,
-  stableSort,
-} from './sections.js';
+import { anchorDate, cmpStr, cmpText, stableSort } from './sections.js';
 import { archiveInTimeline } from './ops.js';
 
 const SENTINEL = '￿'; // sorts after any real date
@@ -90,63 +82,26 @@ function sortChildren(node: TaskNode): TaskNode {
   return { ...node, children: kids };
 }
 
-interface Placed {
-  /** section index -> ordered nodes (tasks/unknowns) */
-  sections: TimelineNode[][];
-  events: TaskNode[];
-}
-
-/** Assign every top-level node to a section and order within each section. */
-function placeTimeline(roots: TimelineNode[]): Placed {
-  const events = collectEvents(roots);
-  const eventDates = events.map((e) => e.dates.due ?? '');
-  const sectionCount = events.length + 1;
-  const sections: TimelineNode[][] = Array.from({ length: sectionCount }, () => []);
-
-  for (const node of roots) {
-    if (node.kind === 'unknown') {
-      // Unknown lines keep their positional section (stable, never relocated).
-      sections[sectionIndexByPosition(node, roots)]!.push(node);
-      continue;
-    }
-    if (node.isEvent) continue; // events are the separators, emitted between sections
-
-    const task = sortChildren(node);
-    let idx: number;
-    if (!task.checked && anchorDate(task)) {
-      idx = sectionIndexByDate(anchorDate(task)!, eventDates);
-    } else {
-      // undated or completed-in-place: positional
-      idx = sectionIndexByPosition(node, roots);
-    }
-    sections[idx]!.push(task);
-  }
-
-  // Order each section: dated, undated, completed; unknowns keep their spot.
-  for (const section of sections) {
-    orderSection(section);
-  }
-  return { sections, events };
-}
-
-function orderSection(section: TimelineNode[]): void {
-  // Separate unknowns (position-stable) from tasks (sortable), then reinterleave
-  // by keeping unknowns at their original relative indices.
+/**
+ * Order the whole timeline as one flat canonical list. Events are ordinary
+ * nodes sorted by date among the tasks — they do not partition or place
+ * anything. Unknown lines stay position-stable.
+ */
+function orderTimeline(roots: TimelineNode[]): TimelineNode[] {
   const unknownAt = new Map<number, UnknownNode>();
   const tasks: TaskNode[] = [];
-  section.forEach((n, i) => {
+  roots.forEach((n, i) => {
     if (n.kind === 'unknown') unknownAt.set(i, n);
-    else tasks.push(n);
+    else tasks.push(sortChildren(n));
   });
   const sortedTasks = stableSort(tasks, compareSiblings);
   const result: TimelineNode[] = [];
   let t = 0;
-  for (let i = 0; i < section.length; i++) {
+  for (let i = 0; i < roots.length; i++) {
     if (unknownAt.has(i)) result.push(unknownAt.get(i)!);
     else result.push(sortedTasks[t++]!);
   }
-  section.length = 0;
-  section.push(...result);
+  return result;
 }
 
 function renderNode(node: TimelineNode, depth: number, out: string[]): void {
@@ -204,25 +159,14 @@ export function format(doc: TaskDocument): string {
     out.push(`# ${d.title}`);
   }
 
-  const { sections, events } = placeTimeline(d.timeline);
-  const timelineHasContent = sections.some((s) => s.length > 0) || events.length > 0;
-  if (timelineHasContent && out.length > 0) out.push('');
+  const ordered = orderTimeline(d.timeline);
+  if (ordered.length > 0 && out.length > 0) out.push('');
 
   const blockStart = () => {
     if (out.length > 0 && out[out.length - 1] !== '') out.push('');
   };
 
-  for (let s = 0; s < sections.length; s++) {
-    const section = sections[s]!;
-    for (const node of section) renderNode(node, 0, out);
-    const event = events[s];
-    if (event) {
-      // Blank line before each event separates sections visually.
-      if (section.length > 0) out.push('');
-      renderNode(event, 0, out);
-      if (s + 1 < sections.length && sections[s + 1]!.length > 0) out.push('');
-    }
-  }
+  for (const node of ordered) renderNode(node, 0, out);
 
   if (d.archive !== null) {
     blockStart();

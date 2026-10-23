@@ -87,20 +87,6 @@ describe('complete moves tasks to the archive', () => {
     expect(out.archive?.[0]?.dates.done).toBe('2026-08-09');
   });
 
-  test('an undated root records a section marker naming its section', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Chore'].join('\n');
-    const doc = parse(src);
-    const out = complete(doc, { match: 'Chore' }, { done: '2026-08-12', rng: rng() });
-    expect(out.archive?.[0]?.props.section).toBe('2026-08-10');
-  });
-
-  test('an undated root in the first section records section:: start', () => {
-    const src = ['- [ ] Chore', '- [ ] 🏁 M 📅 2026-08-10'].join('\n');
-    const doc = parse(src);
-    const out = complete(doc, { match: 'Chore' }, { done: '2026-08-12', rng: rng() });
-    expect(out.archive?.[0]?.props.section).toBe('start');
-  });
-
   test('a nested completion records parent id and mints one if absent', () => {
     const doc = parse('- [ ] Parent\n  - [ ] Child\n');
     const out = complete(doc, { match: 'Child' }, { done: '2026-08-12', rng: rng() });
@@ -190,12 +176,6 @@ describe('archiveInTimeline (format auto-archive)', () => {
     const parent = out.timeline[0] as TaskNode;
     expect(parent.props.id).toBeTruthy();
     expect(out.archive?.[0]?.props.parent).toBe(parent.props.id);
-  });
-
-  test('records [section::] for an undated root', () => {
-    const doc = parse('- [ ] 🏁 M 📅 2026-08-10\n- [x] Chore\n');
-    const out = archiveInTimeline(doc);
-    expect(out.archive?.[0]?.props.section).toBe('2026-08-10');
   });
 
   test('whole subtree travels with a checked parent', () => {

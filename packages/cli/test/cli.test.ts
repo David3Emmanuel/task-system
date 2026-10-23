@@ -46,10 +46,10 @@ describe('read commands', () => {
   });
 
   test('validate exits 1 on a blocking error', () => {
-    io.files.set(FILE, '- [ ] 🏁 A 📅 2026-08-10\n- [ ] 🏁 B 📅 2026-08-01\n');
+    io.files.set(FILE, '- [ ] Bad 🛫 2026-08-10 📅 2026-08-01\n');
     const r = run(['validate', FILE], io);
     expect(r.code).toBe(1);
-    expect(r.stdout).toContain('EVENT_NOT_INCREASING');
+    expect(r.stdout).toContain('START_AFTER_DUE');
   });
 
   test('format --check flags a non-canonical file', () => {

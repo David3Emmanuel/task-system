@@ -32,16 +32,6 @@ describe('events', () => {
     expect(codes(issues)).toContain('EVENT_NO_DATE');
     expect(bySeverity(issues, 'error')).toHaveLength(1);
   });
-
-  test('EVENT_NOT_INCREASING: dates not strictly increasing in file order', () => {
-    const issues = validate(parse('- [ ] 🏁 A 📅 2026-08-10\n- [ ] 🏁 B 📅 2026-08-01\n'));
-    expect(codes(issues)).toContain('EVENT_NOT_INCREASING');
-  });
-
-  test('equal event dates are not increasing either', () => {
-    const issues = validate(parse('- [ ] 🏁 A 📅 2026-08-10\n- [ ] 🏁 B 📅 2026-08-10\n'));
-    expect(codes(issues)).toContain('EVENT_NOT_INCREASING');
-  });
 });
 
 describe('unknown lines', () => {
@@ -73,39 +63,6 @@ describe('task field constraints', () => {
   test('COMPLETED_IN_TIMELINE: a checked task still in the timeline is info', () => {
     const issues = validate(parse('- [x] Done but not archived ✅ 2026-08-01\n'));
     expect(codes(issues)).toContain('COMPLETED_IN_TIMELINE');
-  });
-});
-
-describe('section bounds', () => {
-  test('STRADDLES_EVENT: a task spanning past the next event is a warning, not an error', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Straddler 🛫 2026-08-05 📅 2026-08-15'].join(
-      '\n',
-    );
-    const issues = validate(parse(src));
-    expect(codes(issues)).toContain('STRADDLES_EVENT');
-    expect(bySeverity(issues, 'error').some((i) => i.code === 'STRADDLES_EVENT')).toBe(false);
-    expect(bySeverity(issues, 'warning').some((i) => i.code === 'STRADDLES_EVENT')).toBe(true);
-  });
-
-  test('a straddling task no longer blocks validation', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Straddler 🛫 2026-08-05 📅 2026-08-15'].join(
-      '\n',
-    );
-    expect(hasBlockingErrors(validate(parse(src)))).toBe(false);
-  });
-
-  test('a task whose span ends exactly at the next event does not straddle', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Boundary 🛫 2026-08-05 📅 2026-08-10'].join(
-      '\n',
-    );
-    const issues = validate(parse(src));
-    expect(codes(issues)).not.toContain('STRADDLES_EVENT');
-  });
-
-  test('a task anchored on an event date does not trigger a boundary error', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] On the day 📅 2026-08-10'].join('\n');
-    const issues = validate(parse(src));
-    expect(bySeverity(issues, 'error')).toEqual([]);
   });
 });
 

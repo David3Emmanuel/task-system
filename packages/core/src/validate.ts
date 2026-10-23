@@ -1,15 +1,14 @@
 /**
  * Validation: reports constraint violations without mutating the document.
- * Uses the same section math as the formatter so the two never disagree.
+ * Events do not partition or place anything, so there are no section checks.
  *
  * Severities:
- *  - error: violates a hard invariant (would make the timeline inconsistent).
+ *  - error: violates a hard invariant.
  *  - warning: preserved but suspicious (orphan comment, unsupported line).
  *  - info: allowed but noteworthy (a completed task still in the timeline).
  */
 
-import type { TaskDocument, TaskNode, TimelineNode } from './model.js';
-import { anchorDate, cmpStr, collectEvents, endDate, sectionIndexByDate } from './sections.js';
+import type { TaskDocument, TaskNode } from './model.js';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -24,43 +23,17 @@ export interface Issue {
 export function validate(doc: TaskDocument): Issue[] {
   const issues: Issue[] = [];
 
-  const events = collectEvents(doc.timeline);
-  const eventDates = events.map((e) => e.dates.due ?? '');
-
-  // Events must have a date and be strictly increasing IN FILE ORDER (position
-  // must already agree with chronology). We check the source sequence, not the
-  // sorted one, so an out-of-order event is reported rather than silently sorted.
-  const eventsInFileOrder = doc.timeline.filter(
-    (n): n is TaskNode => n.kind === 'task' && n.isEvent,
-  );
-  for (const e of eventsInFileOrder) {
-    if (!e.dates.due) {
+  // Events need a date to sort among tasks.
+  for (const node of doc.timeline) {
+    if (node.kind === 'task' && node.isEvent && !node.dates.due) {
       issues.push({
         code: 'EVENT_NO_DATE',
         severity: 'error',
-        message: `Event "${e.text}" has no 📅 date.`,
-        line: e.sourceLine,
+        message: `Event "${node.text}" has no 📅 date.`,
+        line: node.sourceLine,
       });
     }
   }
-  for (let i = 1; i < eventsInFileOrder.length; i++) {
-    const prev = eventsInFileOrder[i - 1]!.dates.due ?? '';
-    const cur = eventsInFileOrder[i]!.dates.due ?? '';
-    if (cur <= prev) {
-      issues.push({
-        code: 'EVENT_NOT_INCREASING',
-        severity: 'error',
-        message: `Event dates must strictly increase in file order; ${cur} does not follow ${prev}.`,
-        line: eventsInFileOrder[i]!.sourceLine,
-      });
-    }
-  }
-
-  // Section bounds for each dated top-level task.
-  const bounds = (idx: number): { lower?: string; upper?: string } => ({
-    lower: idx > 0 ? eventDates[idx - 1] : undefined,
-    upper: idx < eventDates.length ? eventDates[idx] : undefined,
-  });
 
   for (const node of doc.timeline) {
     if (node.kind === 'unknown') {
@@ -73,7 +46,7 @@ export function validate(doc: TaskDocument): Issue[] {
       continue;
     }
     if (node.isEvent) continue;
-    checkTask(node, true);
+    checkTask(node);
   }
 
   // Archive checks: completed tasks should carry a done date for deterministic ordering.
@@ -83,7 +56,7 @@ export function validate(doc: TaskDocument): Issue[] {
 
   return issues;
 
-  function checkTask(task: TaskNode, topLevel: boolean): void {
+  function checkTask(task: TaskNode): void {
     const { start, due } = task.dates;
     if (start && due && start > due) {
       issues.push({
@@ -109,32 +82,7 @@ export function validate(doc: TaskDocument): Issue[] {
         line: task.sourceLine,
       });
     }
-
-    if (topLevel && !task.checked) {
-      const anchor = anchorDate(task);
-      if (anchor) {
-        const idx = sectionIndexByDate(anchor, eventDates);
-        const b = bounds(idx);
-        const finish = endDate(task);
-        if (b.lower && anchor < b.lower) {
-          issues.push({
-            code: 'BEFORE_SECTION',
-            severity: 'error',
-            message: `Task "${task.text}" (${anchor}) starts before its section boundary ${b.lower}.`,
-            line: task.sourceLine,
-          });
-        }
-        if (b.upper && finish && finish > b.upper) {
-          issues.push({
-            code: 'STRADDLES_EVENT',
-            severity: 'warning',
-            message: `Task "${task.text}" ends ${finish}, past the next event ${b.upper}; it straddles an event.`,
-            line: task.sourceLine,
-          });
-        }
-      }
-    }
-    for (const child of task.children) checkTask(child, false);
+    for (const child of task.children) checkTask(child);
   }
 
   function walkArchive(task: TaskNode): void {
@@ -155,5 +103,3 @@ export function validate(doc: TaskDocument): Issue[] {
 export function hasBlockingErrors(issues: Issue[]): boolean {
   return issues.some((i) => i.severity === 'error');
 }
-
-export { cmpStr };

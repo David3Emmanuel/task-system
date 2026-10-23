@@ -28,11 +28,10 @@ can all read and write the same source of truth without fighting over it.
   reproducible.
 - **Tolerant parsing** — hand-edited files (and Obsidian Tasks syntax) parse
   without errors; unrecognized lines are preserved position-stable.
-- **Structured model** — frontmatter, title, a nested timeline partitioned by
-  milestones, and an archive, with four date fields (`🛫` start, `📅` due,
-  `✅` done, `➕` created).
+- **Structured model** — frontmatter, title, a nested timeline, and an archive,
+  with four date fields (`🛫` start, `📅` due, `✅` done, `➕` created).
 - **Exact archive round-trip** — `complete` / `unarchive` are inverse
-  operations that restore a task to its original parent and section. `format`
+  operations that restore a task to its original parent. `format`
   auto-archives any completed task still in the timeline (with reversible
   bookkeeping), so a checked task you never explicitly archived lands in the
   Archive canonically.
@@ -138,7 +137,7 @@ tsk validate tasks.md
 # mark done -> moves the task into the Archive section
 tsk complete tasks.md --match "write spec" --done 2026-03-05
 
-# normalize ordering/sections in place
+# normalize ordering in place
 tsk format tasks.md --write
 ```
 
@@ -166,7 +165,7 @@ To run it **linked to a real file** (not localStorage), use `tsk serve`:
 npm run build                        # build the web app (auto-builds if needed)
 tsk serve tasks.md                   # serves the UI backed by tasks.md
 tsk serve tasks.md --port 8080       # or a custom port (default 4173)
-tsk serve tasks.md --format          # sort the file into sections before serving
+tsk serve tasks.md --format          # canonicalize (sort) the file before serving
 ```
 
 It creates the file with an empty document if it doesn't exist (auto-building
@@ -177,8 +176,7 @@ open, the app detects the conflict and reloads rather than overwriting your
 external edit.
 
 The UI shows the file as authored (two-way sync). Use the **Format** button in
-the top bar, or `tsk serve --format`, to canonicalize (sort into sections) on
-demand.
+the top bar, or `tsk serve --format`, to canonicalize (sort) on demand.
 
 For the dev server with hot reload (demo/localStorage only):
 
@@ -197,8 +195,8 @@ npm test             # run the vitest suite
 npm run format       # prettier --write .
 ```
 
-The test suite covers the parser, formatter, operations, validation, section
-math, ids, and the CLI end-to-end.
+The test suite covers the parser, formatter, operations, validation, ordering,
+ids, and the CLI end-to-end.
 
 ---
 
@@ -207,9 +205,8 @@ math, ids, and the CLI end-to-end.
 A document has four regions: optional `---` frontmatter, an optional `# ` title,
 a nested **timeline** (tasks and `🏁` events), and an optional trailing
 `## Archive`. Four date fields are recognized in emoji or `[field:: DATE]` form.
-Top-level events partition the timeline into date-based sections; the formatter
-places dated tasks by their anchor date (`start ?? due`) and undated/completed
-tasks by their original position.
+The formatter orders the timeline as one flat list — open-dated (events included,
+by date), then open-undated, then completed. Events are markers, not boundaries.
 
 See [`docs/format.md`](docs/format.md) for the full specification.
 

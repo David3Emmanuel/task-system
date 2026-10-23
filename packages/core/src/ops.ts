@@ -15,7 +15,6 @@
 import type { IsoDate, TaskDocument, TaskNode, TimelineNode } from './model.js';
 import { makeTask, walkAll } from './model.js';
 import { mintId, seededRng, type Rng } from './ids.js';
-import { anchorDate, sectionIndexByPosition } from './sections.js';
 import { nextDate, parseRecurrence, type Recurrence } from './recurrence.js';
 
 /* -------------------------------------------------------------------------- */
@@ -247,7 +246,6 @@ export function complete(doc: TaskDocument, loc: Locator, opts: CompleteOptions)
   if (!found) throw new OpError('NOT_FOUND', 'Task not found in the timeline.');
 
   const node = found.node;
-  const marker = undatedSectionMarker(node, found, next.timeline);
 
   // A recurring task rolls forward: archive this completed occurrence and
   // insert the next open occurrence where this one was in the timeline.
@@ -263,12 +261,10 @@ export function complete(doc: TaskDocument, loc: Locator, opts: CompleteOptions)
   node.checked = true;
   node.dates.done = opts.done;
 
-  // Record re-nesting / section restore hints.
+  // Record a re-nesting link so `unarchive` can restore it under its parent.
   if (found.parent) {
     const parentId = ensureId(found.parent, taken, rng);
     node.props.parent = parentId;
-  } else if (marker !== null) {
-    node.props.section = marker;
   }
 
   if (next.archive === null) next.archive = [];
@@ -289,32 +285,10 @@ function makeRecurringNext(node: TaskNode, rule: Recurrence): TaskNode {
 }
 
 /**
- * For an undated timeline root, compute the section marker to store: the date
- * of the event immediately before it, or `start` when it sits in the first
- * section. Returns null for dated roots (their dates already place them) and
- * for nested nodes (their parent link places them).
- */
-function undatedSectionMarker(
-  node: TaskNode,
-  found: Located,
-  timeline: TimelineNode[],
-): string | null {
-  if (found.parent) return null;
-  if (anchorDate(node)) return null;
-  const idx = sectionIndexByPosition(node, timeline);
-  if (idx === 0) return 'start';
-  // idx counts events before the node; the (idx-1)-th event in file order is the
-  // one immediately preceding it.
-  const events = timeline.filter((n): n is TaskNode => n.kind === 'task' && n.isEvent);
-  const before = events[idx - 1];
-  return before?.dates.due ?? 'start';
-}
-
-/**
  * Unarchive a task: invert `complete`. Clears `[x]`/`✅` and moves the subtree
- * back to the timeline, restoring its parent (via `[parent::]`) or its section
- * (via `[section::]`). Both hints are consumed. Unarchiving a task whose
- * ancestor is still archived is an error — unarchive the ancestor first.
+ * back to the timeline, restoring its parent via `[parent::]`. Unarchiving a
+ * task whose ancestor is still archived is an error — unarchive the ancestor
+ * first.
  */
 export function unarchive(doc: TaskDocument, loc: Locator): TaskDocument {
   const next = cloneDoc(doc);
@@ -338,7 +312,6 @@ export function unarchive(doc: TaskDocument, loc: Locator): TaskDocument {
   delete node.dates.done;
 
   const parentId = node.props.parent;
-  const sectionMarker = node.props.section;
   delete node.props.parent;
   delete node.props.section;
 
@@ -351,38 +324,11 @@ export function unarchive(doc: TaskDocument, loc: Locator): TaskDocument {
       );
     }
     parent.node.children.push(node);
-  } else if (anchorDate(node)) {
-    // Dated root: the formatter places it by its dates. Position is irrelevant.
-    next.timeline.push(node);
   } else {
-    // Undated root: the formatter places it by *position*, so we must reinsert
-    // it into the section the marker names. 'start' -> before the first event;
-    // an event date -> immediately after the matching event.
-    reinsertUndated(next.timeline, node, sectionMarker);
+    // The formatter orders the whole timeline canonically; position is irrelevant.
+    next.timeline.push(node);
   }
   return next;
-}
-
-/**
- * Reinsert an undated root into the timeline so its positional section matches
- * the stored marker. 'start' (or a missing marker) lands it before the first
- * event; an event-date marker lands it immediately after that event.
- */
-function reinsertUndated(
-  timeline: TimelineNode[],
-  node: TaskNode,
-  marker: string | undefined,
-): void {
-  if (!marker || marker === 'start') {
-    const firstEvent = timeline.findIndex((n) => n.kind === 'task' && n.isEvent);
-    if (firstEvent === -1) timeline.push(node);
-    else timeline.splice(firstEvent, 0, node);
-    return;
-  }
-  // Insert right after the event whose due date equals the marker.
-  const at = timeline.findIndex((n) => n.kind === 'task' && n.isEvent && n.dates.due === marker);
-  if (at === -1) timeline.push(node);
-  else timeline.splice(at + 1, 0, node);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -393,10 +339,9 @@ function reinsertUndated(
  * Move every completed (checked) task still in the timeline to the archive.
  *
  * This is what `format` runs first so a checked task that was never explicitly
- * archived is canonicalized into the archive. It uses the same reversible
- * bookkeeping as `complete` (`[parent::]` for a nested task whose parent stays
- * in the timeline, `[section::]` for an undated root) so `unarchive` still
- * restores it, and it never invents a `✅ done` date (no wall-clock).
+ * archived is canonicalized into the archive. It uses the same `[parent::]`
+ * bookkeeping as `complete` so `unarchive` still restores it, and it never
+ * invents a `✅ done` date (no wall-clock).
  *
  * A checked task's whole subtree travels with it (nested tasks are not split).
  * Completed events are auto-archived too.
@@ -421,40 +366,17 @@ export function archiveInTimeline(doc: TaskDocument): TaskDocument {
   walk(next.timeline, null);
   if (checked.length === 0) return next;
 
-  // Precompute section markers against the original event positions before any
-  // splicing, so positional markers are stable.
-  const events = next.timeline.filter((n): n is TaskNode => n.kind === 'task' && n.isEvent);
-  const prepared = checked.map(({ node, parent }) => ({
-    node,
-    parent,
-    marker: parent ? null : undatedRootMarker(node, next.timeline, events),
-  }));
-
   const rng = seededRng(1);
   const taken = takenIds(next);
-  for (const { node, parent, marker } of prepared) {
+  for (const { node, parent } of checked) {
     removeNode(next.timeline, node);
     if (parent) {
       const pid = ensureId(parent, taken, rng);
       node.props.parent = pid;
-    } else if (marker !== null) {
-      node.props.section = marker;
     }
     (next.archive ??= []).push(node);
   }
   return next;
-}
-
-/** Same marker rule as `complete`'s undatedSectionMarker, against saved events. */
-function undatedRootMarker(
-  node: TaskNode,
-  timeline: TimelineNode[],
-  events: TaskNode[],
-): string | null {
-  if (anchorDate(node)) return null;
-  const idx = sectionIndexByPosition(node, timeline);
-  if (idx === 0) return 'start';
-  return events[idx - 1]?.dates.due ?? 'start';
 }
 
 /** Remove a task node (by identity) from its tree, wherever it nests. */

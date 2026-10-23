@@ -81,19 +81,6 @@ describe('section placement', () => {
 });
 
 describe('validation', () => {
-  test('flags non-increasing events', () => {
-    const issues = validate(parse('- [ ] 🏁 A 📅 2026-08-10\n- [ ] 🏁 B 📅 2026-08-01\n'));
-    expect(issues.some((i) => i.code === 'EVENT_NOT_INCREASING')).toBe(true);
-  });
-
-  test('flags a task that straddles an event', () => {
-    const src = ['- [ ] 🏁 M 📅 2026-08-10', '- [ ] Straddler 🛫 2026-08-05 📅 2026-08-15'].join(
-      '\n',
-    );
-    const issues = validate(parse(src));
-    expect(issues.some((i) => i.code === 'STRADDLES_EVENT')).toBe(true);
-  });
-
   test('flags start after due', () => {
     const issues = validate(parse('- [ ] Bad 🛫 2026-08-10 📅 2026-08-01\n'));
     expect(issues.some((i) => i.code === 'START_AFTER_DUE')).toBe(true);
