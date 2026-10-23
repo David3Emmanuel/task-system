@@ -171,8 +171,9 @@ through formatting untouched. This guarantees round-tripping hand-edited files.
 `format()` maps a parsed document back to canonical text. Guarantees:
 
 - **Idempotent**: `format(format(x)) === format(x)`.
-- **Confluent**: the canonical form depends only on content, not on the input
-  ordering of siblings (a total-order tiebreak makes the sort unique).
+- **Deterministic**: same content in the same order gives the same output; there
+  is no wall-clock. (Equal dates keep authored order, so input order can matter
+  for ties.)
 - **No wall-clock**: output is a pure function of the AST; a `✅ done` date is
   never invented.
 - **Prop-stable**: the formatter never invents or strips `[id::]`, `[parent::]` —
@@ -199,17 +200,19 @@ A serialized line uses this order:
 
 ## 5. Ordering
 
-The timeline is one flat, canonically ordered list. Events are ordinary nodes
-sorted among the tasks by their date — they do **not** partition the timeline or
-place anything.
+The timeline is one flat list. **Dated tasks and events are sorted by their anchor
+date** (`start ?? due`); an **undated task rides with the dated task above it**
+(authoring it after a task keeps it there when that task moves). Undated tasks
+before the first dated one stay at the top. Equal dates keep authored order.
+Events are ordinary dated nodes — they do **not** partition the timeline or place
+anything.
 
-- Order is **open-dated → open-undated → completed**, each by a total-order sort
-  (dates, then text, then the serialized line as the final tiebreak). Events sort
-  with the open-dated group by their `📅 due`.
-- Unknown lines stay position-stable.
-- `complete` / `unarchive` are inverses: a nested completion records
-  `[parent::]` so `unarchive` re-nests it. (The old `[section::]` hint is no
-  longer written; any that remain are preserved but ignored.)
+- Children are ordered by the same rule, recursively.
+- Unknown lines (prose the parser can't interpret) stay position-stable.
+- `complete` / `unarchive` restore a nested task under its parent via
+  `[parent::]`. Top-level position is not stored, so an undated root unarchives to
+  the end of the timeline. (The old `[section::]` hint is no longer written; any
+  that remain are preserved but ignored.)
 
 ---
 

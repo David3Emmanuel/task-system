@@ -125,7 +125,8 @@ describe('mutating commands persist canonical text', () => {
     expect(out).toContain('✅ 2026-08-09');
   });
 
-  test('complete then unarchive restores the original file', () => {
+  test('complete then unarchive restores the original file (dated tasks)', () => {
+    io.files.set(FILE, '# T\n\n- [ ] Alpha 📅 2026-08-10\n- [ ] Beta 📅 2026-08-20\n');
     const original = io.files.get(FILE)!;
     run(['complete', FILE, '--match', 'Alpha', '--done', '2026-08-09'], io);
     run(['unarchive', FILE, '--match', 'Alpha'], io);

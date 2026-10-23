@@ -15,6 +15,35 @@ describe('canonical field order and spacing', () => {
   });
 });
 
+describe('ordering: undated tasks ride with the dated task above them', () => {
+  test('dated tasks sort by date; followers move with their anchor', () => {
+    const src = [
+      '- [ ] Lead undated',
+      '- [ ] D late 📅 2026-12-01',
+      '- [ ] U1 (undated)',
+      '- [ ] D early 📅 2026-10-01',
+      '- [ ] U2 (undated)',
+      '- [ ] D mid 📅 2026-11-01',
+    ].join('\n');
+    expect(rt(src)).toBe(
+      [
+        '- [ ] Lead undated',
+        '- [ ] D early 📅 2026-10-01',
+        '- [ ] U2 (undated)',
+        '- [ ] D mid 📅 2026-11-01',
+        '- [ ] D late 📅 2026-12-01',
+        '- [ ] U1 (undated)',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  test('an undated task added at the top stays at the top', () => {
+    const out = rt('- [ ] Just added\n- [ ] Dated 📅 2026-10-01\n');
+    expect(out).toBe('- [ ] Just added\n- [ ] Dated 📅 2026-10-01\n');
+  });
+});
+
 describe('idempotence', () => {
   const samples = [
     '- [ ] A 📅 2026-08-10\n- [ ] B 🛫 2026-08-02\n',

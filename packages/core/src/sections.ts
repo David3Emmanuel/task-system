@@ -84,3 +84,36 @@ export function cmpText(a: string, b: string): number {
   const lb = b.toLowerCase();
   return cmpStr(la, lb) || cmpStr(a, b);
 }
+
+/**
+ * Sort the comparable items by key and keep each non-comparable item attached to
+ * the comparable item above it (leading non-comparables stay at the top).
+ *
+ * Used for the timeline: dated tasks/events are the comparables (sorted by
+ * date); an undated task rides along with the dated task it followed. Ties keep
+ * authored order (the sort is stable).
+ */
+export function sortWithAttached<T>(
+  items: readonly T[],
+  isComparable: (x: T) => boolean,
+  key: (x: T) => string,
+): T[] {
+  const lead: T[] = [];
+  const groups: { anchor: T; followers: T[] }[] = [];
+  for (const x of items) {
+    if (isComparable(x)) {
+      groups.push({ anchor: x, followers: [] });
+    } else {
+      const last = groups[groups.length - 1];
+      if (last) last.followers.push(x);
+      else lead.push(x);
+    }
+  }
+  groups.sort((a, b) => cmpStr(key(a.anchor), key(b.anchor)));
+  const out: T[] = [...lead];
+  for (const g of groups) {
+    out.push(g.anchor);
+    out.push(...g.followers);
+  }
+  return out;
+}

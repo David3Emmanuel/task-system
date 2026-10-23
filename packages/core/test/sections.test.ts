@@ -8,6 +8,7 @@ import {
   stableSort,
   cmpStr,
   cmpText,
+  sortWithAttached,
 } from '../src/sections.js';
 import { parse, makeTask } from '../src/index.js';
 import type { TaskNode, TimelineNode } from '../src/index.js';
@@ -151,5 +152,53 @@ describe('helpers used by the formatter', () => {
   test('dates() round-trips the fields the section logic reads', () => {
     const node = makeTask('A', { dates: { start: '2026-08-01', due: '2026-08-10' } });
     expect(dates(node)).toEqual({ start: '2026-08-01', due: '2026-08-10' });
+  });
+});
+
+describe('sortWithAttached', () => {
+  const comparable = (x: { k?: number }) => x.k !== undefined;
+  const key = (x: { k?: number }) => String(x.k ?? '');
+
+  test('sorts anchors by key and keeps followers under the anchor above them', () => {
+    const items = [
+      { v: 'late', k: 3 },
+      { v: 'u1' },
+      { v: 'early', k: 1 },
+      { v: 'u2' },
+      { v: 'mid', k: 2 },
+      { v: 'u3' },
+    ];
+    expect(sortWithAttached(items, comparable, key).map((x) => x.v)).toEqual([
+      'early',
+      'u2',
+      'mid',
+      'u3',
+      'late',
+      'u1',
+    ]);
+  });
+
+  test('leading non-comparables stay at the top', () => {
+    const items = [{ v: 'lead1' }, { v: 'lead2' }, { v: 'b', k: 1 }, { v: 'u' }, { v: 'a', k: 2 }];
+    expect(sortWithAttached(items, comparable, key).map((x) => x.v)).toEqual([
+      'lead1',
+      'lead2',
+      'b',
+      'u',
+      'a',
+    ]);
+  });
+
+  test('equal keys keep authored order (stable)', () => {
+    const items = [
+      { v: 'first', k: 1 },
+      { v: 'second', k: 1 },
+    ];
+    expect(sortWithAttached(items, comparable, key).map((x) => x.v)).toEqual(['first', 'second']);
+  });
+
+  test('an all-undated list is returned unchanged', () => {
+    const items = [{ v: 'x' }, { v: 'y' }, { v: 'z' }];
+    expect(sortWithAttached(items, comparable, key).map((x) => x.v)).toEqual(['x', 'y', 'z']);
   });
 });

@@ -23,9 +23,9 @@ can all read and write the same source of truth without fighting over it.
 
 ## Features
 
-- **Deterministic format** — `format()` is idempotent and confluent (input
-  order never matters); no wall-clock, injectable seeded RNG, so output is
-  reproducible.
+- **Deterministic format** — `format()` is idempotent; dated tasks sort by date,
+  undated tasks stay with the dated task above them, equal dates keep authored
+  order; no wall-clock, injectable seeded RNG, so output is reproducible.
 - **Tolerant parsing** — hand-edited files (and Obsidian Tasks syntax) parse
   without errors; unrecognized lines are preserved position-stable.
 - **Structured model** — frontmatter, title, a nested timeline, and an archive,
@@ -205,8 +205,9 @@ ids, and the CLI end-to-end.
 A document has four regions: optional `---` frontmatter, an optional `# ` title,
 a nested **timeline** (tasks and `🏁` events), and an optional trailing
 `## Archive`. Four date fields are recognized in emoji or `[field:: DATE]` form.
-The formatter orders the timeline as one flat list — open-dated (events included,
-by date), then open-undated, then completed. Events are markers, not boundaries.
+The formatter sorts dated tasks and events by date; an undated task stays with the
+dated task above it (leading undated tasks stay on top). Events are markers, not
+boundaries.
 
 See [`docs/format.md`](docs/format.md) for the full specification.
 

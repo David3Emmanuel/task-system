@@ -19,7 +19,7 @@
 
 import type { IsoDate, TaskDocument, TaskNode, TimelineNode, UnknownNode } from './model.js';
 import { ARCHIVE_HEADER, EMOJI } from './model.js';
-import { anchorDate, cmpStr, cmpText, stableSort } from './sections.js';
+import { anchorDate, cmpStr, cmpText, sortWithAttached, stableSort } from './sections.js';
 import { archiveInTimeline } from './ops.js';
 
 const SENTINEL = '￿'; // sorts after any real date
@@ -78,14 +78,24 @@ function compareSiblings(a: TaskNode, b: TaskNode): number {
 }
 
 function sortChildren(node: TaskNode): TaskNode {
-  const kids = stableSort(node.children, compareSiblings).map(sortChildren);
+  const kids = sortWithAttached(node.children, isDated, anchorKey).map(sortChildren);
   return { ...node, children: kids };
 }
 
+/** A node that carries its own date (start or due) — the sortable anchors. */
+function isDated(node: TaskNode): boolean {
+  return anchorDate(node) !== undefined;
+}
+
+/** Sort key for a dated node: its anchor date. */
+function anchorKey(node: TaskNode): string {
+  return anchorDate(node) ?? '';
+}
+
 /**
- * Order the whole timeline as one flat canonical list. Events are ordinary
- * nodes sorted by date among the tasks — they do not partition or place
- * anything. Unknown lines stay position-stable.
+ * Order the whole timeline as one flat list. Dated tasks and events are sorted
+ * by date; an undated task rides with the dated task above it (leading undated
+ * tasks stay on top). Unknown lines stay position-stable.
  */
 function orderTimeline(roots: TimelineNode[]): TimelineNode[] {
   const unknownAt = new Map<number, UnknownNode>();
@@ -94,12 +104,12 @@ function orderTimeline(roots: TimelineNode[]): TimelineNode[] {
     if (n.kind === 'unknown') unknownAt.set(i, n);
     else tasks.push(sortChildren(n));
   });
-  const sortedTasks = stableSort(tasks, compareSiblings);
+  const ordered = sortWithAttached(tasks, isDated, anchorKey);
   const result: TimelineNode[] = [];
   let t = 0;
   for (let i = 0; i < roots.length; i++) {
     if (unknownAt.has(i)) result.push(unknownAt.get(i)!);
-    else result.push(sortedTasks[t++]!);
+    else result.push(ordered[t++]!);
   }
   return result;
 }

@@ -106,7 +106,7 @@ describe('unarchive inverts complete', () => {
     expect(rt(back)).toBe(format(doc));
   });
 
-  test('undated root restores to its original section', () => {
+  test('undated root returns to the timeline, open (position is not restored)', () => {
     const src = [
       '# T',
       '',
@@ -117,7 +117,10 @@ describe('unarchive inverts complete', () => {
     const doc = parse(src);
     const done = complete(doc, { match: 'Chore' }, { done: '2026-08-12', rng: rng() });
     const back = unarchive(done, { match: 'Chore' });
-    expect(rt(back)).toBe(format(doc));
+    const out = format(back);
+    expect(out).toContain('- [ ] Chore');
+    expect(out).not.toContain('- [x] Chore');
+    expect(out.match(/Chore/g)).toHaveLength(1);
   });
 
   test('nested task restores under its parent (parent keeps its id)', () => {
