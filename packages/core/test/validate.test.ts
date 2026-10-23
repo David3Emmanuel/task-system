@@ -66,6 +66,40 @@ describe('task field constraints', () => {
   });
 });
 
+describe('parent/child agreement', () => {
+  test('CHILD_OUTSIDE_PARENT: a child whose dates rule out the parent partition', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Dated parent 📅 2026-06-01',
+      '  - [ ] Late child 🛫 2026-12-01',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    const issues = validate(parse(src));
+    expect(codes(issues)).toContain('CHILD_OUTSIDE_PARENT');
+    expect(bySeverity(issues, 'warning').some((i) => i.code === 'CHILD_OUTSIDE_PARENT')).toBe(true);
+  });
+
+  test('no warning when the child fits the parent partition', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Dated parent 📅 2026-06-01',
+      '  - [ ] Child 📅 2026-05-01',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    expect(codes(validate(parse(src)))).not.toContain('CHILD_OUTSIDE_PARENT');
+  });
+
+  test('no warning under an undated parent (it follows its children)', () => {
+    const src = [
+      '- [ ] 🏁 E1 📅 2026-03-01',
+      '- [ ] Parent',
+      '  - [ ] Child 🛫 2026-12-01',
+      '- [ ] 🏁 E2 📅 2026-09-01',
+    ].join('\n');
+    expect(codes(validate(parse(src)))).not.toContain('CHILD_OUTSIDE_PARENT');
+  });
+});
+
 describe('archive', () => {
   test('ARCHIVE_NO_DONE: an archived root without a done date is info, not a warning', () => {
     const src = ['# T', '', '- [ ] A', '', '## Archive', '', '- [x] Old'].join('\n');

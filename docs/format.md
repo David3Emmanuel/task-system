@@ -218,8 +218,8 @@ dates keep authored order.
 Nesting:
 
 - A parent with `start` and/or `due` forces its whole subtree into the parent's
-  partition. A child whose dates disagree is a mistake to fix, not a reason to
-  split.
+  partition. A child whose own dates rule that partition out is flagged
+  (`CHILD_OUTSIDE_PARENT`), not split.
 - A fully undated parent follows its children; if they land in different
   partitions it splits into `(part N)` fragments, each carrying one-sided clamped
   dates (`📅 E−1` before the boundary, `🛫 E+1` after it — never an inverted pair).
@@ -245,6 +245,7 @@ preserved but ignored.)
 | `EVENT_NO_DATE` | error | Event has no `📅` date. |
 | `START_AFTER_DUE` | error | `start` is later than `due`. |
 | `UNSUPPORTED_LINE` | warning | An unrecognized line was preserved verbatim. |
+| `CHILD_OUTSIDE_PARENT` | warning | A task sits under a dated parent, but its own dates place it outside that parent's event partition. |
 | `ARCHIVE_NO_DONE` | info | An archived root has no `✅` date; ordering falls back to text. |
 | `DONE_NO_DATE` | info | A checked task has no `✅` date. |
 | `COMPLETED_IN_TIMELINE` | info | A completed task is still in the timeline. |

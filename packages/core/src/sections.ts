@@ -117,3 +117,106 @@ export function sortWithAttached<T>(
   }
   return out;
 }
+
+/** True when a task carries its own start or due date. */
+export function hasOwnDates(node: TaskNode): boolean {
+  return node.dates.start !== undefined || node.dates.due !== undefined;
+}
+
+/** Number of events strictly before `date`. */
+function eventsBeforeDate(date: string, eventDates: string[]): number {
+  let count = 0;
+  for (const d of eventDates) {
+    if (d < date) count++;
+    else break;
+  }
+  return count;
+}
+
+/**
+ * Legal partition range implied by a task's own dates, clamped toward the
+ * position it already occupies (minimal movement):
+ *   start → cannot sit before the last event at or before it;
+ *   due   → cannot sit after the first event after it.
+ */
+export function clampPartition(
+  current: number,
+  task: TaskNode,
+  eventDates: string[],
+  n: number,
+): number {
+  const lower = task.dates.start ? sectionIndexByDate(task.dates.start, eventDates) : 0;
+  const upper = task.dates.due ? eventsBeforeDate(task.dates.due, eventDates) : n;
+  const lo = Math.min(lower, upper);
+  const hi = Math.max(lower, upper);
+  return Math.min(Math.max(current, lo), hi);
+}
+
+export interface PartitionAssignment {
+  events: TaskNode[];
+  eventDates: string[];
+  /** task -> partition index */
+  part: Map<TaskNode, number>;
+}
+
+/**
+ * Assign every task to a partition. Shared by the formatter (placement) and the
+ * validator (parent/child agreement), so the two can never disagree.
+ */
+export function assignPartitions(roots: TimelineNode[]): PartitionAssignment {
+  const events = collectEvents(roots);
+  const eventDates = events.map((e) => e.dates.due ?? '');
+  const n = eventDates.length;
+  const part = new Map<TaskNode, number>();
+
+  function force(node: TaskNode, p: number): void {
+    part.set(node, p);
+    for (const child of node.children) force(child, p);
+  }
+
+  function assignUndated(node: TaskNode, p: number): number {
+    part.set(node, p);
+    let anchor = p;
+    for (const child of sortWithAttached(node.children, hasOwnDates, anchorKeyOf)) {
+      anchor = hasOwnDates(child) ? assign(child, p) : assignUndated(child, anchor);
+    }
+    return p;
+  }
+
+  function assign(node: TaskNode, current: number): number {
+    if (hasOwnDates(node)) {
+      const p = clampPartition(current, node, eventDates, n);
+      part.set(node, p);
+      for (const child of node.children) force(child, p);
+      return p;
+    }
+    let anchor = current;
+    const childParts: number[] = [];
+    for (const child of sortWithAttached(node.children, hasOwnDates, anchorKeyOf)) {
+      if (hasOwnDates(child)) {
+        anchor = assign(child, current);
+        childParts.push(anchor);
+      } else {
+        anchor = assignUndated(child, anchor);
+        childParts.push(anchor);
+      }
+    }
+    const p =
+      childParts.length > 0 && childParts.every((x) => x === childParts[0])
+        ? childParts[0]!
+        : current;
+    part.set(node, p);
+    return p;
+  }
+
+  for (const node of roots) {
+    if (node.kind !== 'task' || node.isEvent) continue;
+    assign(node, sectionIndexByPosition(node, roots));
+  }
+
+  return { events, eventDates, part };
+}
+
+function anchorKeyOf(node: TaskNode): string {
+  return anchorDate(node) ?? '';
+}

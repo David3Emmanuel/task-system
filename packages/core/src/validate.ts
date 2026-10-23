@@ -9,6 +9,7 @@
  */
 
 import type { TaskDocument, TaskNode } from './model.js';
+import { assignPartitions, clampPartition, hasOwnDates } from './sections.js';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -22,6 +23,8 @@ export interface Issue {
 
 export function validate(doc: TaskDocument): Issue[] {
   const issues: Issue[] = [];
+  const { eventDates, part } = assignPartitions(doc.timeline);
+  const n = eventDates.length;
 
   // Events need a date to sort among tasks.
   for (const node of doc.timeline) {
@@ -46,7 +49,7 @@ export function validate(doc: TaskDocument): Issue[] {
       continue;
     }
     if (node.isEvent) continue;
-    checkTask(node);
+    checkTask(node, null);
   }
 
   // Archive checks: completed tasks should carry a done date for deterministic ordering.
@@ -56,7 +59,7 @@ export function validate(doc: TaskDocument): Issue[] {
 
   return issues;
 
-  function checkTask(task: TaskNode): void {
+  function checkTask(task: TaskNode, datedAncestor: number | null): void {
     const { start, due } = task.dates;
     if (start && due && start > due) {
       issues.push({
@@ -82,7 +85,24 @@ export function validate(doc: TaskDocument): Issue[] {
         line: task.sourceLine,
       });
     }
-    for (const child of task.children) checkTask(child);
+
+    // A dated parent forces its subtree into its partition; a child whose own
+    // dates rule that partition out is likely a mistake.
+    const p = part.get(task);
+    if (datedAncestor !== null && p !== undefined) {
+      const natural = clampPartition(datedAncestor, task, eventDates, n);
+      if (natural !== p) {
+        issues.push({
+          code: 'CHILD_OUTSIDE_PARENT',
+          severity: 'warning',
+          message: `Task "${task.text}" is nested under a dated parent, but its own dates place it outside that parent's event partition.`,
+          line: task.sourceLine,
+        });
+      }
+    }
+
+    const childAncestor = hasOwnDates(task) ? (p ?? null) : datedAncestor;
+    for (const child of task.children) checkTask(child, childAncestor);
   }
 
   function walkArchive(task: TaskNode): void {
