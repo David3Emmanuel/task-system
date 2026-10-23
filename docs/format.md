@@ -186,8 +186,18 @@ A completed task (`[x]` with a `✅` date) that was never explicitly archived is
 moved into the archive by `format` (this is the canonical state). It uses the
 same `[id::]` / `[parent::]` / `[section::]` bookkeeping as `complete`, so
 `unarchive` still restores it to its original parent/section. A checked task's
-subtree travels with it, and events are never auto-archived. `format` never
-adds a `✅` date, so a checked task without one is archived as-is.
+subtree travels with it — including completed events. `format` never adds a `✅`
+date, so a checked task without one is archived as-is.
+
+### Splitting event-spanning parents
+
+A top-level parent task whose span (its own dates plus its descendants') crosses
+one or more events is split by `format` into parts around those events. Each
+subtask goes to the gap containing its anchor (`start ?? due`); undated subtasks
+go to the first gap. Each part's own dates are clamped to its gap (day after the
+previous event .. day before the next event), so parts never straddle, and parts
+are labelled `<text> (part N)`. If fewer than two parts would contain subtasks,
+no split happens. The split is canonical and idempotent (a split part is stable).
 
 A serialized line uses this order:
 

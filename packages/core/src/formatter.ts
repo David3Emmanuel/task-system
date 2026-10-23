@@ -28,7 +28,7 @@ import {
   sectionIndexByPosition,
   stableSort,
 } from './sections.js';
-import { archiveInTimeline } from './ops.js';
+import { archiveInTimeline, splitSpanningParents } from './ops.js';
 
 const SENTINEL = '￿'; // sorts after any real date
 
@@ -190,8 +190,9 @@ function orderArchive(roots: TaskNode[]): TaskNode[] {
 
 export function format(doc: TaskDocument): string {
   // Completed tasks still in the timeline are canonicalized into the archive
-  // (with reversible parent/section bookkeeping), then placed as usual.
-  const d = archiveInTimeline(doc);
+  // (with reversible parent/section bookkeeping); a parent whose span crosses
+  // events is split into parts around them; then everything is placed as usual.
+  const d = splitSpanningParents(archiveInTimeline(doc));
   const out: string[] = [];
 
   if (d.frontmatter !== null) {

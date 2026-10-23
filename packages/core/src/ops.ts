@@ -16,7 +16,7 @@ import type { IsoDate, TaskDocument, TaskNode, TimelineNode } from './model.js';
 import { makeTask, walkAll } from './model.js';
 import { mintId, seededRng, type Rng } from './ids.js';
 import { anchorDate, sectionIndexByPosition } from './sections.js';
-import { nextDate, parseRecurrence, type Recurrence } from './recurrence.js';
+import { nextDate, parseRecurrence, shiftDate, type Recurrence } from './recurrence.js';
 
 /* -------------------------------------------------------------------------- */
 /* Locators                                                                    */
@@ -469,6 +469,124 @@ function removeNode(roots: TimelineNode[], target: TaskNode): boolean {
     if (removeNode(n.children, target)) return true;
   }
   return false;
+}
+
+/* -------------------------------------------------------------------------- */
+/* event-spanning parents (canonical split)                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Split a parent whose span crosses one or more events into parts around those
+ * events, distributing its subtasks by section. Canonical: `format` runs it.
+ *
+ * - A parent with subtasks is considered when an event date sits strictly inside
+ *   the union span of the parent and its descendants.
+ * - Each subtask is assigned to the gap containing its anchor (`start ?? due`);
+ *   an undated subtask goes to the first gap.
+ * - Each part's own dates are clamped to its gap ("day after the previous event"
+ *   .. "day before the next event"), so parts never straddle.
+ * - Only gaps that contain at least one subtask become parts; if fewer than two
+ *   parts result, the parent is left alone ("there was no split").
+ * - Scope: top-level parent tasks (the common case); parts are labelled
+ *   "<text> (part N)". Text mutation is intended and reaches a stable form.
+ */
+export function splitSpanningParents(doc: TaskDocument): TaskDocument {
+  const next = cloneDoc(doc);
+  const eventDates = next.timeline
+    .map((n) => (n.kind === 'task' && n.isEvent ? n.dates.due : undefined))
+    .filter((d): d is string => typeof d === 'string')
+    .sort();
+  if (eventDates.length === 0) return next;
+
+  const out: TimelineNode[] = [];
+  for (const node of next.timeline) {
+    if (node.kind !== 'task' || node.isEvent || node.children.length === 0) {
+      out.push(node);
+      continue;
+    }
+    const parts = splitParent(node, eventDates);
+    if (parts) out.push(...parts);
+    else out.push(node);
+  }
+  next.timeline = out;
+  return next;
+}
+
+function splitParent(node: TaskNode, eventDates: string[]): TaskNode[] | null {
+  const span = subtreeSpan(node);
+  if (!span) return null;
+  const inner = eventDates.filter((d) => d > span.min && d < span.max);
+  if (inner.length === 0) return null;
+
+  const gapOf = (d: string): number => {
+    let count = 0;
+    for (const e of inner) if (e <= d) count++;
+    return count;
+  };
+
+  const groups: TaskNode[][] = Array.from({ length: inner.length + 1 }, () => []);
+  for (const child of node.children) {
+    const anchor = anchorDate(child);
+    groups[anchor ? gapOf(anchor) : 0]!.push(child);
+  }
+
+  const parts: TaskNode[] = [];
+  for (let g = 0; g <= inner.length; g++) {
+    const kids = groups[g]!;
+    if (kids.length === 0) continue;
+    const gapStart = g === 0 ? undefined : shiftDate(inner[g - 1]!, 1);
+    const gapEnd = g === inner.length ? undefined : shiftDate(inner[g]!, -1);
+    parts.push(
+      makeTask(`${node.text} (part ${parts.length + 1})`, {
+        dates: clampToGap(node.dates, gapStart, gapEnd),
+        children: kids,
+        comments: parts.length === 0 ? [...node.comments] : [],
+      }),
+    );
+  }
+  if (parts.length < 2) return null;
+  return parts;
+}
+
+/** Earliest/latest dates anywhere in a task's subtree. */
+function subtreeSpan(node: TaskNode): { min: string; max: string } | null {
+  let min = '';
+  let max = '';
+  const walk = (n: TaskNode): void => {
+    for (const d of [n.dates.start, n.dates.due]) {
+      if (!d) continue;
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    }
+    for (const c of n.children) walk(c);
+  };
+  walk(node);
+  return min ? { min, max } : null;
+}
+
+function clampToGap(
+  dates: TaskNode['dates'],
+  gapStart: string | undefined,
+  gapEnd: string | undefined,
+): TaskNode['dates'] {
+  const start = laterDate(dates.start, gapStart);
+  const due = earlierDate(dates.due, gapEnd);
+  const out: TaskNode['dates'] = {};
+  if (start) out.start = start;
+  if (due) out.due = due;
+  return out;
+}
+
+function laterDate(a: string | undefined, b: string | undefined): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a >= b ? a : b;
+}
+
+function earlierDate(a: string | undefined, b: string | undefined): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a <= b ? a : b;
 }
 
 /* -------------------------------------------------------------------------- */

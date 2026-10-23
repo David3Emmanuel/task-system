@@ -16,6 +16,7 @@ export {
   addEvent,
   removeEvent,
   archiveInTimeline,
+  splitSpanningParents,
   OpError,
 } from './ops.js';
 export type { Locator, AddOptions, SetOptions, CompleteOptions } from './ops.js';
