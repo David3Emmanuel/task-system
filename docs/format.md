@@ -242,13 +242,13 @@ preserved but ignored.)
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
-| `EVENT_NO_DATE` | error | Event has no `📅` date. |
-| `START_AFTER_DUE` | error | `start` is later than `due`. |
-| `UNSUPPORTED_LINE` | warning | An unrecognized line was preserved verbatim. |
-| `CHILD_OUTSIDE_PARENT` | warning | A task sits under a dated parent, but its own dates place it outside that parent's event partition. |
-| `ARCHIVE_NO_DONE` | info | An archived root has no `✅` date; ordering falls back to text. |
-| `DONE_NO_DATE` | info | A checked task has no `✅` date. |
-| `COMPLETED_IN_TIMELINE` | info | A completed task is still in the timeline. |
+| `EVENT_NO_DATE` | error | An event has no date (`📅`). |
+| `START_AFTER_DUE` | error | A task starts after its due date. |
+| `UNSUPPORTED_LINE` | warning | A line wasn't recognized as a task and was left as written. |
+| `CHILD_OUTSIDE_PARENT` | warning | A subtask's dates fall outside the range set by its parent's dates. |
+| `ARCHIVE_NO_DONE` | info | An archived task has no `✅` completion date, so it's sorted by text. |
+| `DONE_NO_DATE` | info | A checked-off task has no `✅` completion date. |
+| `COMPLETED_IN_TIMELINE` | info | A checked-off task is still in the main list. |
 
 `hasBlockingErrors(issues)` reports whether any error-level issue exists.
 

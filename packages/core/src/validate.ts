@@ -32,7 +32,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'EVENT_NO_DATE',
         severity: 'error',
-        message: `Event "${node.text}" has no 📅 date.`,
+        message: `Event "${node.text}" has no date. Add a 📅 date so it can be placed.`,
         line: node.sourceLine,
       });
     }
@@ -43,7 +43,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'UNSUPPORTED_LINE',
         severity: 'warning',
-        message: `Unrecognized line preserved verbatim: ${node.text.trim()}`,
+        message: `Not a task, so it was left as written: ${node.text.trim()}`,
         line: node.sourceLine,
       });
       continue;
@@ -65,7 +65,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'START_AFTER_DUE',
         severity: 'error',
-        message: `Task "${task.text}" starts (${start}) after it is due (${due}).`,
+        message: `"${task.text}" starts on ${start}, after its due date (${due}).`,
         line: task.sourceLine,
       });
     }
@@ -73,7 +73,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'DONE_NO_DATE',
         severity: 'info',
-        message: `Completed task "${task.text}" has no ✅ date; ordering falls back to text.`,
+        message: `"${task.text}" is checked off but has no ✅ completion date.`,
         line: task.sourceLine,
       });
     }
@@ -81,7 +81,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'COMPLETED_IN_TIMELINE',
         severity: 'info',
-        message: `Completed task "${task.text}" is still in the timeline; run \`complete\`/archive to move it.`,
+        message: `"${task.text}" is checked off but still in the main list. Run \`complete\` to move it to the archive.`,
         line: task.sourceLine,
       });
     }
@@ -95,7 +95,7 @@ export function validate(doc: TaskDocument): Issue[] {
         issues.push({
           code: 'CHILD_OUTSIDE_PARENT',
           severity: 'warning',
-          message: `Task "${task.text}" is nested under a dated parent, but its own dates place it outside that parent's event partition.`,
+          message: `"${task.text}" is a subtask, but its dates fall outside the range set by its parent's dates.`,
           line: task.sourceLine,
         });
       }
@@ -111,7 +111,7 @@ export function validate(doc: TaskDocument): Issue[] {
       issues.push({
         code: 'ARCHIVE_NO_DONE',
         severity: 'info',
-        message: `Archived task "${task.text}" has no ✅ date; ordering falls back to text.`,
+        message: `"${task.text}" is in the archive but has no ✅ completion date, so it is sorted by its text.`,
         line: task.sourceLine,
       });
     }
