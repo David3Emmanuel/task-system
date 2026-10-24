@@ -246,7 +246,6 @@ preserved but ignored.)
 | `START_AFTER_DUE` | error | A task starts after its due date. |
 | `UNSUPPORTED_LINE` | warning | A line wasn't recognized as a task and was left as written. |
 | `CHILD_OUTSIDE_PARENT` | warning | A subtask's dates fall outside the range set by its parent's dates. |
-| `ARCHIVE_NO_DONE` | info | An archived task has no `✅` completion date, so it's sorted by text. |
 | `DONE_NO_DATE` | info | A checked-off task has no `✅` completion date. |
 | `COMPLETED_IN_TIMELINE` | info | A checked-off task is still in the main list. |
 

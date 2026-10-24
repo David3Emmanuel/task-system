@@ -52,11 +52,6 @@ export function validate(doc: TaskDocument): Issue[] {
     checkTask(node, null);
   }
 
-  // Archive checks: completed tasks should carry a done date for deterministic ordering.
-  if (doc.archive) {
-    for (const root of doc.archive) walkArchive(root);
-  }
-
   return issues;
 
   function checkTask(task: TaskNode, datedAncestor: number | null): void {
@@ -103,19 +98,6 @@ export function validate(doc: TaskDocument): Issue[] {
 
     const childAncestor = hasOwnDates(task) ? (p ?? null) : datedAncestor;
     for (const child of task.children) checkTask(child, childAncestor);
-  }
-
-  function walkArchive(task: TaskNode): void {
-    if (!task.dates.done && !task.props.parent) {
-      // A completed root without a done date orders via text; allowed, notable.
-      issues.push({
-        code: 'ARCHIVE_NO_DONE',
-        severity: 'info',
-        message: `"${task.text}" is in the archive but has no ✅ completion date, so it is sorted by its text.`,
-        line: task.sourceLine,
-      });
-    }
-    for (const child of task.children) walkArchive(child);
   }
 }
 
