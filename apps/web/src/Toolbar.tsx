@@ -15,6 +15,10 @@ export function Toolbar({
 }) {
   const [task, setTask] = useState({ text: '', start: '', due: '' });
   const [ev, setEv] = useState({ text: '', due: '' });
+  const [showEvent, setShowEvent] = useState(false);
+
+  const canAddTask = task.text.trim().length > 0;
+  const canAddEvent = ev.text.trim().length > 0 && ev.due.length > 0;
 
   const submitTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +47,7 @@ export function Toolbar({
           className="grow"
           value={task.text}
           placeholder="Add a task…"
+          aria-label="Task text"
           onChange={(e) => setTask((t) => ({ ...t, text: e.target.value }))}
         />
         <label>
@@ -61,26 +66,49 @@ export function Toolbar({
             onChange={(e) => setTask((t) => ({ ...t, due: e.target.value }))}
           />
         </label>
-        <button type="submit">Add</button>
+        <button type="submit" disabled={!canAddTask}>
+          Add task
+        </button>
       </form>
-      <form className="add-form event-form" onSubmit={submitEvent}>
-        <span className="flag">🏁</span>
-        <input
-          className="grow"
-          value={ev.text}
-          placeholder="Add a milestone…"
-          onChange={(e) => setEv((x) => ({ ...x, text: e.target.value }))}
-        />
-        <label>
-          Due
+
+      {showEvent ? (
+        <form className="add-form event-form" onSubmit={submitEvent}>
+          <span className="flag">🏁</span>
           <input
-            type="date"
-            value={ev.due}
-            onChange={(e) => setEv((x) => ({ ...x, due: e.target.value }))}
+            className="grow"
+            value={ev.text}
+            placeholder="Add a milestone…"
+            aria-label="Milestone text"
+            onChange={(e) => setEv((x) => ({ ...x, text: e.target.value }))}
           />
-        </label>
-        <button type="submit">Add</button>
-      </form>
+          <label>
+            Due
+            <input
+              type="date"
+              value={ev.due}
+              aria-label="Milestone date"
+              onChange={(e) => setEv((x) => ({ ...x, due: e.target.value }))}
+            />
+          </label>
+          <button type="submit" disabled={!canAddEvent}>
+            Add milestone
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setEv({ text: '', due: '' });
+              setShowEvent(false);
+            }}
+          >
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="ghost toolbar-toggle" onClick={() => setShowEvent(true)}>
+          + Milestone
+        </button>
+      )}
     </div>
   );
 }

@@ -10,6 +10,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *    silently clobbered — a conflict reloads the file.
  *  - "demo": no `/doc` endpoint (plain `npm run dev` / static host). Falls back
  *    to the in-memory sample + localStorage.
+ *
+ * The hook also reports what the UI must not hide: which mode is active, why a
+ * demo fallback happened, and the state of the current save.
  */
 
 interface DocResponse {
@@ -19,23 +22,46 @@ interface DocResponse {
 }
 
 export type DocMode = 'loading' | 'file' | 'demo';
+export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+export type DemoCause = 'no-server' | 'unreachable' | null;
 
 const SAVE_DELAY = 350;
 const POLL_MS = 2500;
 
+/** A `/doc` failure, classified so the UI can say *why* it fell back. */
+class DocError extends Error {
+  constructor(
+    readonly kind: 'no-server' | 'unreachable',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function getDoc(metaOnly: boolean): Promise<DocResponse> {
-  const res = await fetch(`/doc${metaOnly ? '?meta=1' : ''}`);
-  if (!res.ok) throw new Error(`/doc ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(`/doc${metaOnly ? '?meta=1' : ''}`);
+  } catch {
+    throw new DocError('unreachable', 'could not reach /doc');
+  }
+  if (!res.ok) throw new DocError('no-server', `/doc ${res.status}`);
   const data = await res.json();
   if (typeof data.text !== 'string' && typeof data.etag !== 'string') {
-    throw new Error('unexpected /doc response');
+    throw new DocError('no-server', 'unexpected /doc response');
   }
   return data;
+}
+
+function causeOf(err: unknown): 'no-server' | 'unreachable' {
+  return err instanceof DocError ? err.kind : 'no-server';
 }
 
 export function useDocument(fallback: string) {
   const [text, setText] = useState<string>(fallback);
   const [mode, setMode] = useState<DocMode>('loading');
+  const [demoCause, setDemoCause] = useState<DemoCause>(null);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const [notice, setNotice] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
@@ -59,32 +85,40 @@ export function useDocument(fallback: string) {
     if (doc.name) setFileName(doc.name);
   }, []);
 
-  const doSave = useCallback(async () => {
-    const current = textRef.current;
-    try {
-      const res = await fetch('/doc', {
-        method: 'PUT',
-        headers: { 'content-type': 'text/plain', 'if-match': etagRef.current ?? '' },
-        body: current,
-      });
-      if (res.status === 409) {
-        // File changed elsewhere — reload rather than overwrite.
-        const currentOnDisk = (await res.json()) as DocResponse;
-        adopt(currentOnDisk);
-        showNotice('File changed on disk — reloaded the latest version.');
-        return;
-      }
-      if (res.ok) {
+  const doSave = useCallback(
+    async (opts?: { keepalive?: boolean }) => {
+      const current = textRef.current;
+      setSaveState('saving');
+      try {
+        const res = await fetch('/doc', {
+          method: 'PUT',
+          headers: { 'content-type': 'text/plain', 'if-match': etagRef.current ?? '' },
+          body: current,
+          keepalive: opts?.keepalive,
+        });
+        if (res.status === 409) {
+          // File changed elsewhere — reload rather than overwrite.
+          const currentOnDisk = (await res.json()) as DocResponse;
+          adopt(currentOnDisk);
+          showNotice('File changed on disk — reloaded the latest version.');
+          setSaveState('idle');
+          return;
+        }
+        if (!res.ok) throw new Error(`/doc ${res.status}`);
         const data = (await res.json()) as { etag: string };
         etagRef.current = data.etag;
         lastSavedRef.current = current;
+        setSaveState('saved');
+      } catch {
+        // Surface it: a silent failure is how edits get lost.
+        setSaveState('error');
       }
-    } catch {
-      // offline / transient; leave it to the next change or poll.
-    }
-  }, [adopt, showNotice]);
+    },
+    [adopt, showNotice],
+  );
 
   const scheduleSave = useCallback(() => {
+    setSaveState('saving');
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void doSave(), SAVE_DELAY);
   }, [doSave]);
@@ -105,15 +139,40 @@ export function useDocument(fallback: string) {
         const doc = await getDoc(false);
         if (cancelled) return;
         adopt(doc);
+        setDemoCause(null);
+        setSaveState('idle');
         setMode('file');
-      } catch {
-        if (!cancelled) setMode('demo');
+      } catch (err) {
+        if (!cancelled) {
+          setDemoCause(causeOf(err));
+          setMode('demo');
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [adopt]);
+
+  // Flush a pending edit when the page is hidden or unloaded.
+  useEffect(() => {
+    if (mode !== 'file') return;
+    const flush = () => {
+      if (modeRef.current !== 'file') return;
+      if (lastSavedRef.current === textRef.current) return;
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      void doSave({ keepalive: true });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [mode, doSave]);
 
   // Poll for external changes; adopt only when there are no unsaved edits.
   useEffect(() => {
@@ -135,5 +194,25 @@ export function useDocument(fallback: string) {
     return () => window.clearInterval(id);
   }, [mode, adopt, showNotice]);
 
-  return { text, mode, notice, fileName, updateText };
+  /** Reconnect after a demo fallback. */
+  const retry = useCallback(() => {
+    setMode('loading');
+    void (async () => {
+      try {
+        const doc = await getDoc(false);
+        adopt(doc);
+        setDemoCause(null);
+        setSaveState('idle');
+        setMode('file');
+      } catch (err) {
+        setDemoCause(causeOf(err));
+        setMode('demo');
+      }
+    })();
+  }, [adopt]);
+
+  /** Re-run a failed save. */
+  const retrySave = useCallback(() => void doSave(), [doSave]);
+
+  return { text, mode, notice, fileName, updateText, saveState, demoCause, retry, retrySave };
 }

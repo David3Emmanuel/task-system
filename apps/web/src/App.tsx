@@ -53,14 +53,29 @@ function loadInitial(): string {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+interface Toast {
+  message: string;
+  undo?: () => void;
+}
+
 export function App() {
   // The raw markdown is the single source of truth. In "file" mode (served by
   // `tsk serve <file>`) it's read/written to a real file via the /doc endpoint;
   // in "demo" mode it's an in-memory sample + localStorage. Either way, every
   // UI edit produces a new document and commits it back as text.
-  const { text, mode, notice, fileName, updateText } = useDocument(loadInitial());
+  const { text, mode, notice, fileName, updateText, saveState, demoCause, retry, retrySave } =
+    useDocument(loadInitial());
   const doc = useMemo(() => parse(text), [text]);
   const issues = useMemo(() => validate(doc), [doc]);
+
+  const [showMarkdown, setShowMarkdown] = useState(() => {
+    try {
+      return window.matchMedia('(min-width: 901px)').matches;
+    } catch {
+      return true;
+    }
+  });
+  const [toast, setToast] = useState<Toast | null>(null);
 
   // Persist to localStorage only in demo mode.
   useEffect(() => {
@@ -72,18 +87,42 @@ export function App() {
     }
   }, [text, mode]);
 
+  useEffect(() => {
+    document.title = fileName ? `${fileName} — Task-System` : 'Task-System';
+  }, [fileName]);
+
+  // Auto-dismiss the toast; a new toast restarts the timer.
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
   const commit = useCallback((next: TaskDocument) => updateText(format(next)), [updateText]);
 
-  const run = useCallback(
-    (fn: (d: TaskDocument) => TaskDocument) => {
+  /** Apply a document operation, offering Undo for the previous text. */
+  const act = useCallback(
+    (fn: (d: TaskDocument) => TaskDocument, message: string) => {
+      const prior = text;
       try {
         commit(fn(doc));
+        setToast({ message, undo: () => updateText(prior) });
       } catch (err) {
-        if (err instanceof OpError) window.alert(`${err.code}: ${err.message}`);
+        if (err instanceof OpError) setToast({ message: err.message });
         else throw err;
       }
     },
-    [doc, commit],
+    [doc, text, commit, updateText],
+  );
+
+  /** Replace the whole document, offering Undo. */
+  const replaceAll = useCallback(
+    (next: string, message: string) => {
+      const prior = text;
+      updateText(next);
+      setToast({ message, undo: () => updateText(prior) });
+    },
+    [text, updateText],
   );
 
   const callbacks: TaskCallbacks = {
@@ -92,22 +131,22 @@ export function App() {
         // Completed-in-timeline can't be reopened with the current ops; the
         // archive is the reopen path. Events are completed the same way.
         if (node.checked) return;
-        run((d) => complete(d, locatorFor(node), { done: today(), rng: seededRng(1) }));
+        act(
+          (d) => complete(d, locatorFor(node), { done: today(), rng: seededRng(1) }),
+          'Task completed',
+        );
       } else {
-        run((d) => unarchive(d, locatorFor(node)));
+        act((d) => unarchive(d, locatorFor(node)), 'Task reopened');
       }
     },
     onDelete(node) {
-      if (node.children.length > 0 && !window.confirm('Delete this task and all its subtasks?')) {
-        return;
-      }
-      run((d) => rm(d, locatorFor(node), { recursive: true }));
+      act((d) => rm(d, locatorFor(node), { recursive: true }), 'Task deleted');
     },
     onEdit(node, fields) {
-      run((d) => set(d, locatorFor(node), fields));
+      act((d) => set(d, locatorFor(node), fields), 'Task updated');
     },
     onAddChild(node, text) {
-      run((d) => add(d, { text, parent: locatorFor(node) }));
+      act((d) => add(d, { text, parent: locatorFor(node) }), 'Subtask added');
     },
   };
 
@@ -115,56 +154,128 @@ export function App() {
     return <div className="app loading">Connecting…</div>;
   }
 
+  const closeMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.closest('details')?.removeAttribute('open');
+  };
+
   return (
     <div className="app">
-      {notice && <div className="notice">{notice}</div>}
+      {toast ? (
+        <div className="toast" role="status">
+          <span>{toast.message}</span>
+          {toast.undo && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                toast.undo?.();
+                setToast(null);
+              }}
+            >
+              Undo
+            </button>
+          )}
+        </div>
+      ) : notice ? (
+        <div className="toast" role="status">
+          {notice}
+        </div>
+      ) : null}
 
       <header className="topbar">
-        <span className="brand">Task‑System</span>
-        {fileName && (
+        <span className="brand">Task-System</span>
+
+        {fileName ? (
           <span className="file-badge" title="Saving to this file">
             📄 {fileName}
           </span>
-        )}
+        ) : mode === 'demo' ? (
+          <>
+            <span className="demo-badge" title="Changes are stored in this browser only">
+              Demo — changes stay in this browser
+            </span>
+            {demoCause === 'unreachable' && (
+              <button onClick={retry} title="Try to reach the file server again">
+                Retry
+              </button>
+            )}
+          </>
+        ) : null}
+
         <TitleInput
           value={doc.title ?? ''}
           onCommit={(t) => commit({ ...doc, title: t || null })}
         />
+
         <span className="spacer" />
-        <button onClick={() => commit(doc)} title="Reformat the document to canonical order">
+
+        {saveState === 'saving' && <span className="save-state">Saving…</span>}
+        {saveState === 'saved' && <span className="save-state">Saved</span>}
+        {saveState === 'error' && (
+          <button className="save-state error" onClick={retrySave}>
+            Save failed — retry
+          </button>
+        )}
+
+        <button
+          onClick={() => replaceAll(format(doc), 'Reformatted')}
+          title="Reformat to canonical order"
+        >
           Format
         </button>
+
+        <details className="menu">
+          <summary aria-label="More actions" title="More actions">
+            ⋯
+          </summary>
+          <div className="menu-items">
+            <button
+              onClick={(e) => {
+                closeMenu(e);
+                replaceAll(SAMPLE, 'Loaded the sample');
+              }}
+            >
+              Load sample
+            </button>
+            <button
+              onClick={(e) => {
+                closeMenu(e);
+                replaceAll(format(emptyDocument()), 'Cleared the document');
+              }}
+            >
+              Clear document
+            </button>
+          </div>
+        </details>
+
         <button
-          onClick={() =>
-            window.confirm('Replace the document with the sample?') && updateText(SAMPLE)
-          }
+          onClick={() => setShowMarkdown((v) => !v)}
+          aria-pressed={showMarkdown}
+          title="Show or hide the Markdown pane"
         >
-          Sample
+          Markdown
         </button>
-        <button
-          onClick={() => window.confirm('Start from an empty document?') && commit(emptyDocument())}
-        >
-          Clear
-        </button>
+
         <ThemeToggle />
       </header>
 
       <StatusBar issues={issues} />
 
       <Toolbar
-        onAddTask={(o) => run((d) => add(d, o))}
-        onAddEvent={(label, due) => run((d) => addEvent(d, label, due))}
+        onAddTask={(o) => act((d) => add(d, o), 'Task added')}
+        onAddEvent={(label, due) => act((d) => addEvent(d, label, due), 'Milestone added')}
       />
 
-      <main className="panes">
+      <main className={`panes ${showMarkdown ? '' : 'single'}`}>
         <section className="pane">
           <h2>Tasks</h2>
           <TaskList timeline={doc.timeline} archive={doc.archive} callbacks={callbacks} />
         </section>
-        <section className="pane">
-          <h2>Markdown</h2>
-          <Editor text={text} onChange={updateText} />
-        </section>
+        {showMarkdown && (
+          <section className="pane">
+            <h2>Markdown</h2>
+            <Editor text={text} onChange={updateText} />
+          </section>
+        )}
       </main>
     </div>
   );

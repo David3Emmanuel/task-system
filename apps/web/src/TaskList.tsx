@@ -18,6 +18,11 @@ interface Props {
 }
 
 export function TaskList({ timeline, archive, callbacks }: Props) {
+  const empty = timeline.length === 0 && (!archive || archive.length === 0);
+  if (empty) {
+    return <p className="empty">No tasks yet — add one above.</p>;
+  }
+
   return (
     <div className="task-list">
       <ul className="roots">
@@ -62,15 +67,18 @@ function NodeView({
   region: 'timeline' | 'archive';
   callbacks: TaskCallbacks;
 }) {
+  // Cap the indent so a deep tree can't march off-screen.
+  const indent = Math.min(depth, 8) * 18;
+
   if (node.kind === 'unknown') {
     return (
-      <li className="node unknown" style={{ paddingLeft: depth * 18 }}>
+      <li className="node unknown" style={{ paddingLeft: indent }}>
         <code>{node.text}</code>
       </li>
     );
   }
   return (
-    <li className="node" style={{ paddingLeft: depth * 18 }}>
+    <li className="node" style={{ paddingLeft: indent }}>
       <TaskRow node={node} region={region} callbacks={callbacks} />
       {node.children.length > 0 && (
         <ul>
@@ -116,6 +124,15 @@ function TaskRow({
 
   const done = node.dates.done;
 
+  const saveEdit = () => {
+    callbacks.onEdit(node, {
+      text: draft.text.trim() || node.text,
+      start: draft.start || null,
+      due: draft.due || null,
+    });
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <div className="row edit">
@@ -124,6 +141,13 @@ function TaskRow({
           value={draft.text}
           autoFocus
           onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              saveEdit();
+            }
+            if (e.key === 'Escape') setEditing(false);
+          }}
         />
         <div className="edit-fields">
           <label>
@@ -144,18 +168,7 @@ function TaskRow({
           </label>
         </div>
         <div className="row-actions">
-          <button
-            onClick={() => {
-              callbacks.onEdit(node, {
-                text: draft.text.trim() || node.text,
-                start: draft.start || null,
-                due: draft.due || null,
-              });
-              setEditing(false);
-            }}
-          >
-            Save
-          </button>
+          <button onClick={saveEdit}>Save</button>
           <button className="ghost" onClick={() => setEditing(false)}>
             Cancel
           </button>
@@ -182,6 +195,7 @@ function TaskRow({
           checked={node.checked}
           disabled={region === 'timeline' && node.checked}
           title={node.isEvent ? 'Complete this milestone' : undefined}
+          aria-label={`${node.text} — ${region === 'archive' ? 'reopen' : 'complete'}`}
           onChange={() => callbacks.onToggle(node, region)}
         />
         {node.isEvent && <span className="flag">🏁</span>}
@@ -189,13 +203,13 @@ function TaskRow({
         {node.dates.start && <Chip emoji={EMOJI.start} value={node.dates.start} kind="start" />}
         {node.dates.due && <Chip emoji={EMOJI.due} value={node.dates.due} kind="due" />}
         {done && <Chip emoji={EMOJI.done} value={done} kind="done" />}
-        {node.props.id && <span className="id">{node.props.id}</span>}
         <span className="spacer" />
         <div className="row-actions">
           {canHaveChildren && (
             <button
               className="ghost"
               title="Add subtask"
+              aria-label="Add subtask"
               onClick={() => {
                 setChildText('');
                 setAddingChild(true);
@@ -207,6 +221,7 @@ function TaskRow({
           <button
             className="ghost"
             title="Edit"
+            aria-label="Edit task"
             onClick={() => {
               setDraft({
                 text: node.text,
@@ -218,7 +233,12 @@ function TaskRow({
           >
             ✎
           </button>
-          <button className="ghost danger" title="Delete" onClick={() => callbacks.onDelete(node)}>
+          <button
+            className="ghost danger"
+            title="Delete"
+            aria-label="Delete task"
+            onClick={() => callbacks.onDelete(node)}
+          >
             ✕
           </button>
         </div>
@@ -231,6 +251,7 @@ function TaskRow({
             value={childText}
             autoFocus
             placeholder="Subtask…"
+            aria-label="New subtask"
             onChange={(e) => setChildText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
