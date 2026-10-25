@@ -78,3 +78,64 @@ describe('empty state', () => {
     expect(await screen.findByText(/No tasks yet/)).toBeInTheDocument();
   });
 });
+
+describe('pane layout', () => {
+  test('split shows both panes and a 50% separator', async () => {
+    mockFile(DOC);
+    render(<App />);
+    await screen.findByText(/Tasks\.md/);
+    expect(screen.getByRole('heading', { name: 'Tasks' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '50');
+  });
+
+  test('switches between UI and Markdown single-pane views', async () => {
+    mockFile(DOC);
+    render(<App />);
+    await screen.findByText(/Tasks\.md/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Markdown' }));
+    expect(screen.getByRole('heading', { name: 'Markdown' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tasks' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'UI' }));
+    expect(screen.getByRole('heading', { name: 'Tasks' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Markdown' })).not.toBeInTheDocument();
+  });
+
+  test('the divider is keyboard operable', async () => {
+    mockFile(DOC);
+    render(<App />);
+    await screen.findByText(/Tasks\.md/);
+    const sep = screen.getByRole('separator');
+
+    fireEvent.keyDown(sep, { key: 'ArrowRight' });
+    expect(sep).toHaveAttribute('aria-valuenow', '52');
+    fireEvent.keyDown(sep, { key: 'ArrowLeft' });
+    expect(sep).toHaveAttribute('aria-valuenow', '50');
+
+    fireEvent.keyDown(sep, { key: 'End' });
+    expect(Number(sep.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(70);
+    fireEvent.keyDown(sep, { key: 'Home' });
+    expect(Number(sep.getAttribute('aria-valuenow'))).toBeLessThanOrEqual(30);
+  });
+
+  test('remembers the chosen view', async () => {
+    localStorage.setItem('task-system:view', 'markdown');
+    mockFile(DOC);
+    render(<App />);
+    await screen.findByText(/Tasks\.md/);
+    expect(screen.getByRole('heading', { name: 'Markdown' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tasks' })).not.toBeInTheDocument();
+  });
+
+  test('restores the split ratio', async () => {
+    localStorage.setItem('task-system:view', 'split');
+    localStorage.setItem('task-system:split', '70');
+    mockFile(DOC);
+    render(<App />);
+    await screen.findByText(/Tasks\.md/);
+    expect(screen.getByRole('separator')).toHaveAttribute('aria-valuenow', '70');
+  });
+});

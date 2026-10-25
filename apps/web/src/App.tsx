@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   parse,
   format,
@@ -24,6 +24,50 @@ import { ThemeToggle } from './ThemeToggle';
 import { useDocument } from './useFileDoc';
 
 const STORAGE_KEY = 'task-system:doc';
+const VIEW_KEY = 'task-system:view';
+const SPLIT_KEY = 'task-system:split';
+
+type View = 'split' | 'tasks' | 'markdown';
+
+const MIN_PCT = 20;
+const MAX_PCT = 80;
+const MIN_PX = 260;
+
+function isWideScreen(): boolean {
+  try {
+    return window.matchMedia('(min-width: 901px)').matches;
+  } catch {
+    return true;
+  }
+}
+
+function loadView(): View | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === 'split' || v === 'tasks' || v === 'markdown') return v;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function loadSplit(): number {
+  try {
+    const raw = Number(localStorage.getItem(SPLIT_KEY));
+    if (Number.isFinite(raw) && raw >= MIN_PCT && raw <= MAX_PCT) return raw;
+  } catch {
+    /* ignore */
+  }
+  return 50;
+}
+
+/** Keep both panes usable: 20–80 %, and never below MIN_PX on either side. */
+function clampSplit(pct: number, width: number): number {
+  const minPct = Math.max(MIN_PCT, (MIN_PX / Math.max(width, 1)) * 100);
+  const maxPct = Math.min(MAX_PCT, 100 - minPct);
+  if (minPct >= maxPct) return 50;
+  return Math.min(Math.max(pct, minPct), maxPct);
+}
 
 const SAMPLE = `# Launch plan
 
@@ -68,14 +112,28 @@ export function App() {
   const doc = useMemo(() => parse(text), [text]);
   const issues = useMemo(() => validate(doc), [doc]);
 
-  const [showMarkdown, setShowMarkdown] = useState(() => {
-    try {
-      return window.matchMedia('(min-width: 901px)').matches;
-    } catch {
-      return true;
-    }
-  });
+  const [view, setView] = useState<View>(() => loadView() ?? (isWideScreen() ? 'split' : 'tasks'));
+  const [splitPct, setSplitPct] = useState<number>(loadSplit);
+  const [dragging, setDragging] = useState(false);
+  const panesRef = useRef<HTMLElement>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+
+  // Persist the layout choice alongside the theme.
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      /* ignore */
+    }
+  }, [view]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SPLIT_KEY, String(Math.round(splitPct)));
+    } catch {
+      /* ignore */
+    }
+  }, [splitPct]);
 
   // Persist to localStorage only in demo mode.
   useEffect(() => {
@@ -156,6 +214,42 @@ export function App() {
 
   const closeMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.closest('details')?.removeAttribute('open');
+  };
+
+  const paneWidth = () => {
+    const w = panesRef.current?.getBoundingClientRect().width ?? 0;
+    return w > 0 ? w : 1200;
+  };
+
+  const dragTo = (clientX: number) => {
+    const el = panesRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setSplitPct(clampSplit(((clientX - rect.left) / rect.width) * 100, rect.width));
+  };
+
+  const nudge = (delta: number) => {
+    setSplitPct((p) => clampSplit(p + delta, paneWidth()));
+  };
+
+  const onDividerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? 10 : 2;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nudge(-step);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nudge(step);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setSplitPct(clampSplit(MIN_PCT, paneWidth()));
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setSplitPct(clampSplit(MAX_PCT, paneWidth()));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      setSplitPct(50);
+    }
   };
 
   return (
@@ -248,13 +342,17 @@ export function App() {
             </div>
           </details>
 
-          <button
-            onClick={() => setShowMarkdown((v) => !v)}
-            aria-pressed={showMarkdown}
-            title="Show or hide the Markdown pane"
-          >
-            Markdown
-          </button>
+          <div className="segmented" role="group" aria-label="Pane layout">
+            <button aria-pressed={view === 'split'} onClick={() => setView('split')}>
+              Split
+            </button>
+            <button aria-pressed={view === 'tasks'} onClick={() => setView('tasks')}>
+              UI
+            </button>
+            <button aria-pressed={view === 'markdown'} onClick={() => setView('markdown')}>
+              Markdown
+            </button>
+          </div>
 
           <ThemeToggle />
         </div>
@@ -267,12 +365,52 @@ export function App() {
         onAddEvent={(label, due) => act((d) => addEvent(d, label, due), 'Milestone added')}
       />
 
-      <main className={`panes ${showMarkdown ? '' : 'single'}`}>
-        <section className="pane">
-          <h2>Tasks</h2>
-          <TaskList timeline={doc.timeline} archive={doc.archive} callbacks={callbacks} />
-        </section>
-        {showMarkdown && (
+      <main
+        ref={panesRef}
+        className={`panes view-${view}${dragging ? ' resizing' : ''}`}
+        style={{ '--split-pct': splitPct } as React.CSSProperties}
+      >
+        {view !== 'markdown' && (
+          <section className="pane">
+            <h2>Tasks</h2>
+            <TaskList timeline={doc.timeline} archive={doc.archive} callbacks={callbacks} />
+          </section>
+        )}
+        {view === 'split' && (
+          <div
+            className="pane-divider"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panes"
+            aria-valuemin={MIN_PCT}
+            aria-valuemax={MAX_PCT}
+            aria-valuenow={Math.round(splitPct)}
+            aria-valuetext={`${Math.round(splitPct)}% for tasks`}
+            tabIndex={0}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setDragging(true);
+            }}
+            onPointerMove={(e) => {
+              if (dragging) dragTo(e.clientX);
+            }}
+            onPointerUp={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }
+              setDragging(false);
+            }}
+            onPointerCancel={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }
+              setDragging(false);
+            }}
+            onKeyDown={onDividerKeyDown}
+            onDoubleClick={() => setSplitPct(50)}
+          />
+        )}
+        {view !== 'tasks' && (
           <section className="pane">
             <h2>Markdown</h2>
             <Editor text={text} onChange={updateText} />

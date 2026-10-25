@@ -271,6 +271,33 @@ button.theme-toggle {
   line-height: 1.2;
 }
 
+/* Segmented control (pane layout) */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.segmented button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 5px 10px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+.segmented button:hover {
+  color: var(--accent);
+  border-color: transparent;
+}
+.segmented button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* Overflow menu */
 .menu {
   position: relative;
@@ -423,13 +450,42 @@ input[type='number'] {
 .panes {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns:
+    minmax(0, calc(var(--split-pct, 50) * 1%))
+    9px
+    minmax(0, 1fr);
   gap: 0;
   min-height: 0;
 }
-.panes.single {
-  grid-template-columns: 1fr;
+.panes.view-tasks,
+.panes.view-markdown {
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr;
+}
+.panes.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.pane-divider {
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+.pane-divider::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+}
+.pane-divider:hover::before,
+.pane-divider:focus-visible::before {
+  width: 2px;
+  background: var(--accent);
 }
 .pane {
   display: flex;
@@ -437,9 +493,6 @@ input[type='number'] {
   min-height: 0;
   overflow: hidden;
   background: var(--surface);
-}
-.pane + .pane {
-  border-left: 1px solid var(--border);
 }
 .pane h2 {
   margin: 0;
@@ -664,12 +717,19 @@ input[type='number'] {
    Narrow screens
 --------------------------------------------------------------------------- */
 @media (max-width: 900px) {
-  .panes:not(.single) {
-    grid-template-columns: 1fr;
+  .panes.view-split {
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 1fr 1fr;
   }
-  .pane + .pane {
-    border-left: none;
+  .panes.view-tasks,
+  .panes.view-markdown {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 1fr;
+  }
+  .pane-divider {
+    display: none;
+  }
+  .panes.view-split .pane:nth-of-type(2) {
     border-top: 1px solid var(--border);
   }
 }
