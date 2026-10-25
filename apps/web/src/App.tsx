@@ -208,54 +208,56 @@ export function App() {
 
         <span className="spacer" />
 
-        {saveState === 'saving' && <span className="save-state">Saving…</span>}
-        {saveState === 'saved' && <span className="save-state">Saved</span>}
-        {saveState === 'error' && (
-          <button className="save-state error" onClick={retrySave}>
-            Save failed — retry
+        <div className="topbar-actions">
+          {saveState === 'saving' && <span className="save-state">Saving…</span>}
+          {saveState === 'saved' && <span className="save-state">Saved</span>}
+          {saveState === 'error' && (
+            <button className="save-state error" onClick={retrySave}>
+              Save failed — retry
+            </button>
+          )}
+
+          <button
+            onClick={() => replaceAll(format(doc), 'Reformatted')}
+            title="Reformat to canonical order"
+          >
+            Format
           </button>
-        )}
 
-        <button
-          onClick={() => replaceAll(format(doc), 'Reformatted')}
-          title="Reformat to canonical order"
-        >
-          Format
-        </button>
+          <details className="menu">
+            <summary aria-label="More actions" title="More actions">
+              ⋯
+            </summary>
+            <div className="menu-items">
+              <button
+                onClick={(e) => {
+                  closeMenu(e);
+                  replaceAll(SAMPLE, 'Loaded the sample');
+                }}
+              >
+                Load sample
+              </button>
+              <button
+                onClick={(e) => {
+                  closeMenu(e);
+                  replaceAll(format(emptyDocument()), 'Cleared the document');
+                }}
+              >
+                Clear document
+              </button>
+            </div>
+          </details>
 
-        <details className="menu">
-          <summary aria-label="More actions" title="More actions">
-            ⋯
-          </summary>
-          <div className="menu-items">
-            <button
-              onClick={(e) => {
-                closeMenu(e);
-                replaceAll(SAMPLE, 'Loaded the sample');
-              }}
-            >
-              Load sample
-            </button>
-            <button
-              onClick={(e) => {
-                closeMenu(e);
-                replaceAll(format(emptyDocument()), 'Cleared the document');
-              }}
-            >
-              Clear document
-            </button>
-          </div>
-        </details>
+          <button
+            onClick={() => setShowMarkdown((v) => !v)}
+            aria-pressed={showMarkdown}
+            title="Show or hide the Markdown pane"
+          >
+            Markdown
+          </button>
 
-        <button
-          onClick={() => setShowMarkdown((v) => !v)}
-          aria-pressed={showMarkdown}
-          title="Show or hide the Markdown pane"
-        >
-          Markdown
-        </button>
-
-        <ThemeToggle />
+          <ThemeToggle />
+        </div>
       </header>
 
       <StatusBar issues={issues} />

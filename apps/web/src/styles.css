@@ -180,6 +180,13 @@ body {
   flex: 1;
 }
 
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .file-badge,
 .demo-badge {
   display: inline-flex;
@@ -368,16 +375,18 @@ button.theme-toggle {
 }
 .add-form {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
 .add-form .grow {
-  flex: 1;
+  flex: 1 1 160px;
 }
 .add-form label {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  flex: 0 0 auto;
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
@@ -420,6 +429,7 @@ input[type='number'] {
 }
 .panes.single {
   grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
 }
 .pane {
   display: flex;
@@ -449,7 +459,8 @@ input[type='number'] {
   overflow: auto;
   padding: var(--space-2);
 }
-.roots {
+.roots,
+.node ul {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -643,11 +654,17 @@ input[type='number'] {
   font-size: var(--text-sm);
 }
 
+@media (max-width: 600px) {
+  .add-form .grow {
+    flex: 1 1 100%;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Narrow screens
 --------------------------------------------------------------------------- */
 @media (max-width: 900px) {
-  .panes {
+  .panes:not(.single) {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr 1fr;
   }
